@@ -1,0 +1,17 @@
+name: US Pilot Watchlist
+instruments:
+  - symbol: SPY
+    exchange: NYSEARCA
+    asset_type: ETF
+  - symbol: QQQ
+    exchange: NASDAQ
+    asset_type: ETF
+  - symbol: AAPL
+    exchange: NASDAQ
+    asset_type: STOCK
+  - symbol: MSFT
+    exchange: NASDAQ
+    asset_type: STOCK
+  - symbol: NVDA
+    exchange: NASDAQ
+    asset_type: STOCK
