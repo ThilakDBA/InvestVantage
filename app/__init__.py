@@ -1,0 +1,1 @@
+"""InvestVantage application package."""

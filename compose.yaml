@@ -1,0 +1,72 @@
+name: investvantage
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.2-pg17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-investvantage}
+      POSTGRES_USER: ${POSTGRES_USER:-investvantage_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - investvantage-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-investvantage_app} -d ${POSTGRES_DB:-investvantage}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [investvantage]
+
+  migrate:
+    build: .
+    restart: "no"
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-investvantage_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-investvantage}
+      TRADING_MODE: paper
+      ENABLE_BROKER_ORDERS: "false"
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [investvantage]
+
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-investvantage_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-investvantage}
+      TRADING_MODE: paper
+      ENABLE_BROKER_ORDERS: "false"
+    ports:
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks: [investvantage]
+
+volumes:
+  investvantage-postgres:
+
+networks:
+  investvantage:
+    driver: bridge
