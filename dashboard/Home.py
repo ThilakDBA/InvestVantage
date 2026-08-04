@@ -41,24 +41,27 @@ with controls:
     )
 
 with content:
-    if not analyse:
+    context = (symbol, provider, requested_points)
+    if analyse:
+        try:
+            response = httpx.get(
+                f"{API_BASE_URL}/api/v1/analysis/{symbol}/technical",
+                params={"provider": provider, "refresh": "true", "limit": requested_points},
+                timeout=30,
+            )
+            response.raise_for_status()
+            st.session_state["analysis_result"] = response.json()
+            st.session_state["analysis_context"] = context
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.json().get("detail", "Analysis request failed")
+            st.error(detail)
+        except httpx.HTTPError as exc:
+            st.error(f"API request failed: {exc}")
+
+    result = st.session_state.get("analysis_result")
+    if result is None or st.session_state.get("analysis_context") != context:
         st.subheader("Select an instrument and run technical analysis")
         st.write("The dashboard will show trend, momentum, volatility, volume and scoring factors.")
-        st.stop()
-    try:
-        response = httpx.get(
-            f"{API_BASE_URL}/api/v1/analysis/{symbol}/technical",
-            params={"provider": provider, "refresh": "true", "limit": requested_points},
-            timeout=30,
-        )
-        response.raise_for_status()
-        result = response.json()
-    except httpx.HTTPStatusError as exc:
-        detail = exc.response.json().get("detail", "Analysis request failed")
-        st.error(detail)
-        st.stop()
-    except httpx.HTTPError as exc:
-        st.error(f"API request failed: {exc}")
         st.stop()
 
     score, trend, price, rsi = st.columns(4)
