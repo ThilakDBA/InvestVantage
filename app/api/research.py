@@ -59,6 +59,12 @@ async def refresh_research(request: Request, instrument: Instrument) -> None:
         _upsert(session, instrument.id, "fundamentals", fundamentals, fundamental_value)
         _upsert(session, instrument.id, "news", news, news_value)
         _upsert(session, instrument.id, "earnings", earnings, None)
+        for data_type, loader in (("dividends", provider.dividends), ("splits", provider.splits)):
+            try:
+                payload = await loader(instrument.symbol)
+            except MarketDataError:
+                continue
+            _upsert(session, instrument.id, data_type, payload, None)
         session.commit()
 
 
@@ -110,5 +116,7 @@ async def get_research(
             fundamentals=_component(fundamental, f_factors, f_risks),
             news=_component(news, n_factors, n_risks),
             earnings=_component(values.get("earnings")),
+            dividends=_component(values.get("dividends")),
+            splits=_component(values.get("splits")),
             data_completeness=completeness,
         )

@@ -37,6 +37,19 @@ async def seed() -> None:
                         "news": await research_provider.news(instrument.symbol),
                         "earnings": await research_provider.earnings(instrument.symbol),
                     }
+                    for data_type, loader in (
+                        ("dividends", research_provider.dividends),
+                        ("splits", research_provider.splits),
+                    ):
+                        try:
+                            payloads[data_type] = await loader(instrument.symbol)
+                        except MarketDataError as exc:
+                            logger.info(
+                                "%s unavailable for %s: %s",
+                                data_type,
+                                instrument.symbol,
+                                exc,
+                            )
                     for data_type, payload in payloads.items():
                         score = None
                         if data_type == "fundamentals":

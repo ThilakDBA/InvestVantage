@@ -210,3 +210,16 @@ Quality Momentum now combines technical (40%), fundamental (20%), news (10%), ma
 (10%), sector-relative strength (10%) and portfolio suitability (10%) scores. Missing provider
 data remains `null` and lowers `data_completeness`; it is never silently replaced with mock
 data. News scoring is a deterministic headline-cue baseline and requires human review.
+
+### Backtest integrity controls
+
+The backtest laboratory models configurable position value, commission per order, regulatory
+fees, entry/exit slippage and cash dividends. Daily Twelve Data prices are split-adjusted;
+dividend and split-event ingestion is attempted separately and is shown as unavailable when the
+configured provider plan does not include those premium endpoints. The dashboard reports net
+returns, modeled fees, drawdown, equity curve, trade detail and all active assumptions.
+
+The current universe is today's configured watchlist, so results retain survivorship bias. A
+future point-in-time universe dataset is required to remove that limitation. Historical
+fundamentals are also excluded until filing-date-aware snapshots are available. Broker execution
+remains disabled; backtest settings cannot submit an order.

@@ -190,7 +190,9 @@ with content:
         "Drag to zoom, double-click to reset, and hover for exact values."
     )
 
-    research_tab, news_tab, earnings_tab = st.tabs(["Fundamentals", "News", "Earnings"])
+    research_tab, news_tab, earnings_tab, actions_tab = st.tabs(
+        ["Fundamentals", "News", "Earnings", "Corporate actions"]
+    )
     research_response = httpx.get(
         f"{API_BASE_URL}/api/v1/research/{symbol}", timeout=20
     )
@@ -252,6 +254,25 @@ with content:
             st.dataframe(pd.DataFrame(events), use_container_width=True, hide_index=True)
         else:
             st.info("No earnings events are available.")
+    with actions_tab:
+        dividends = (
+            research["dividends"]["data"]
+            if research and research["dividends"]["available"]
+            else []
+        )
+        splits = (
+            research["splits"]["data"]
+            if research and research["splits"]["available"]
+            else []
+        )
+        if dividends:
+            st.markdown("**Dividends**")
+            st.dataframe(pd.DataFrame(dividends), use_container_width=True, hide_index=True)
+        if splits:
+            st.markdown("**Stock splits**")
+            st.dataframe(pd.DataFrame(splits), use_container_width=True, hide_index=True)
+        if not dividends and not splits:
+            st.info("Corporate-action data is unavailable on the configured provider plan.")
 
     positives, negatives = st.columns(2)
     with positives:
@@ -277,8 +298,8 @@ with content:
         st.warning("Finnhub currently supplies one quote, not enough history for a signal.")
     else:
         st.caption(
-            "Technical-only research signal using real daily history. Fundamentals, news, "
-            "market regime and portfolio suitability are not included yet."
+            "Composite research signal using real daily history plus every available fundamental, "
+            "news, market-regime, sector and portfolio component."
         )
     if st.button(
         "Generate research signal",
@@ -331,17 +352,49 @@ with content:
     else:
         st.info("Outcomes appear after enough post-signal trading days have been collected.")
 
+    st.subheader("Backtest laboratory")
+    with st.expander("Execution and cost assumptions", expanded=True):
+        assumption_left, assumption_middle, assumption_right = st.columns(3)
+        with assumption_left:
+            backtest_horizon = st.slider("Holding period", 5, 60, 20)
+            position_value = st.number_input("Position value ($)", 100.0, 1_000_000.0, 10_000.0)
+        with assumption_middle:
+            commission = st.number_input("Commission per order ($)", 0.0, 100.0, 1.0)
+            regulatory_fee = st.number_input("Regulatory fee (bps)", 0.0, 100.0, 0.2)
+        with assumption_right:
+            slippage = st.number_input("Slippage per side (bps)", 0.0, 500.0, 5.0)
+            st.caption("Broker execution remains disabled. These values affect simulation only.")
     backtest_response = httpx.get(
         f"{API_BASE_URL}/api/v1/signals/backtest/{symbol}",
-        params={"provider": provider, "horizon_days": 20},
+        params={
+            "provider": provider,
+            "horizon_days": backtest_horizon,
+            "position_value": position_value,
+            "commission_per_order": commission,
+            "regulatory_fee_bps": regulatory_fee,
+            "slippage_bps": slippage,
+        },
         timeout=20,
     )
     if backtest_response.is_success:
         backtest = backtest_response.json()
-        left, right = st.columns(2)
+        left, middle, right, drawdown = st.columns(4)
         left.metric("Walk-forward win rate", f"{backtest['win_rate']}%")
-        right.metric("Average 20-day return", f"{backtest['average_return']}%")
-        st.caption(backtest["warning"])
+        middle.metric("Average net return", f"{backtest['average_net_return']}%")
+        right.metric("Total modeled fees", f"${backtest['total_fees']:,.2f}")
+        drawdown.metric("Maximum drawdown", f"{backtest['maximum_drawdown']}%")
+        if backtest["equity_curve"]:
+            equity_frame = pd.DataFrame(backtest["equity_curve"])
+            equity_frame["date"] = pd.to_datetime(equity_frame["date"])
+            st.line_chart(equity_frame, x="date", y="equity")
+        with st.expander("Backtest trades and disclosures"):
+            st.dataframe(
+                pd.DataFrame(backtest["trades"]), use_container_width=True, hide_index=True
+            )
+            for disclosure in backtest["bias_disclosures"]:
+                st.warning(disclosure)
+    elif provider == "twelve_data":
+        st.info(backtest_response.json().get("detail", "Backtest is not available"))
 
     st.subheader("Portfolio suitability")
     with st.expander("Add or update a paper holding"):

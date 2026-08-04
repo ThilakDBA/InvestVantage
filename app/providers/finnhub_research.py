@@ -41,6 +41,22 @@ class FinnhubResearchProvider:
         payload = await self._get("calendar/earnings", {"symbol": symbol})
         return list(payload.get("earningsCalendar", [])) if isinstance(payload, dict) else []
 
+    async def dividends(self, symbol: str) -> list[dict]:
+        payload = await self._get("stock/dividend2", {"symbol": symbol})
+        return list(payload.get("data", [])) if isinstance(payload, dict) else []
+
+    async def splits(self, symbol: str, years: int = 10) -> list[dict]:
+        today = date.today()
+        payload = await self._get(
+            "stock/split",
+            {
+                "symbol": symbol,
+                "from": str(today - timedelta(days=365 * years)),
+                "to": str(today),
+            },
+        )
+        return list(payload) if isinstance(payload, list) else []
+
 
 def fundamental_score(metrics: dict) -> tuple[int, list[str], list[str]]:
     positives: list[str] = []

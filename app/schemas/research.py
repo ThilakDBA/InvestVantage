@@ -18,4 +18,6 @@ class ResearchResponse(BaseModel):
     fundamentals: ResearchComponent
     news: ResearchComponent
     earnings: ResearchComponent
+    dividends: ResearchComponent
+    splits: ResearchComponent
     data_completeness: int

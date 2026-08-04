@@ -1,10 +1,11 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.analysis import analyse_bars
+from app.analysis.backtest import BacktestAssumptions, run_backtest
 from app.analysis.context import (
     SECTOR_BENCHMARKS,
     market_regime,
@@ -268,7 +269,11 @@ def backtest_signal(
     symbol: str,
     request: Request,
     provider: str = "twelve_data",
-    horizon_days: int = 20,
+    horizon_days: int = Query(default=20, ge=5, le=120),
+    position_value: float = Query(default=10_000, gt=0, le=10_000_000),
+    commission_per_order: float = Query(default=1.0, ge=0, le=100),
+    regulatory_fee_bps: float = Query(default=0.2, ge=0, le=100),
+    slippage_bps: float = Query(default=5.0, ge=0, le=500),
 ) -> dict:
     with request.app.state.database.session_factory() as session:
         instrument = session.scalar(
@@ -277,45 +282,25 @@ def backtest_signal(
         if instrument is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Instrument not found")
         bars = _bars(session, instrument.id, provider)
-    minimum = 60 + horizon_days
-    if len(bars) < minimum:
+        dividend_snapshot = session.scalar(
+            select(ResearchSnapshot).where(
+                ResearchSnapshot.instrument_id == instrument.id,
+                ResearchSnapshot.data_type == "dividends",
+            )
+        )
+        dividends = dividend_snapshot.payload if dividend_snapshot else []
+    assumptions = BacktestAssumptions(
+        horizon_days=horizon_days,
+        position_value=position_value,
+        commission_per_order=commission_per_order,
+        regulatory_fee_bps=regulatory_fee_bps,
+        slippage_bps=slippage_bps,
+    )
+    try:
+        result = run_backtest(bars, assumptions, dividends=dividends)
+    except ValueError as exc:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            f"At least {minimum} stored bars are required for this backtest",
-        )
-    trades = []
-    for index in range(60, len(bars) - horizon_days, 5):
-        window = bars[: index + 1]
-        analysis = analyse_bars(window)
-        decision = generate_decision(analysis, window[-1].close)
-        if decision.recommendation not in {"BUY", "WATCH"}:
-            continue
-        entry = window[-1].close
-        future = bars[index + 1 : index + horizon_days + 1]
-        returns = [(bar.close / entry - 1) * 100 for bar in future]
-        trades.append(
-            {
-                "entry_date": window[-1].timestamp.isoformat(),
-                "recommendation": decision.recommendation,
-                "entry_price": entry,
-                "exit_price": future[-1].close,
-                "return_percentage": round(returns[-1], 2),
-                "maximum_favourable_excursion": round(max(returns), 2),
-                "maximum_adverse_excursion": round(min(returns), 2),
-            }
-        )
-    returns = [trade["return_percentage"] for trade in trades]
-    return {
-        "symbol": instrument.symbol,
-        "provider": provider,
-        "horizon_days": horizon_days,
-        "sample_size": len(trades),
-        "win_rate": round(sum(value > 0 for value in returns) / len(returns) * 100, 2)
-        if returns
-        else None,
-        "average_return": round(sum(returns) / len(returns), 2) if returns else None,
-        "trades": trades,
-        "warning": (
-            "Exploratory walk-forward result; excludes fees, slippage and survivorship bias."
-        ),
-    }
+            str(exc),
+        ) from exc
+    return {"symbol": instrument.symbol, "provider": provider, **result}
