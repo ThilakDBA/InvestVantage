@@ -12,6 +12,7 @@ RUN addgroup --system investvantage \
 COPY pyproject.toml ./
 COPY app ./app
 COPY config ./config
+COPY dashboard ./dashboard
 COPY alembic.ini ./
 COPY migrations ./migrations
 

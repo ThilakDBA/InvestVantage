@@ -1,4 +1,4 @@
-.PHONY: setup test lint format api compose-up compose-down migrate load-watchlist
+.PHONY: setup test lint format api dashboard compose-up compose-down migrate load-watchlist
 
 setup:
 	python -m pip install --upgrade pip
@@ -17,6 +17,9 @@ format:
 
 api:
 	uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+dashboard:
+	streamlit run dashboard/Home.py --server.port 8501
 
 compose-up:
 	docker compose up --build -d

@@ -153,5 +153,22 @@ Supported market-data configuration:
 
 ## Next milestone
 
-Milestone 3 will add deterministic moving averages, RSI, MACD, ATR, volume
-analysis and technical scoring on top of normalized price history.
+Milestone 3 adds deterministic moving averages, RSI, MACD, ATR, volume analysis,
+support and resistance references, and an explainable technical score.
+
+```text
+GET /api/v1/analysis/{symbol}/technical
+```
+
+The Streamlit research dashboard runs as a separate Compose service on port
+`8501`. In Codespaces, open the private forwarded port named
+**InvestVantage Dashboard**. It provides instrument and provider controls, price
+history, technical metrics, scoring factors and risk factors. It does not place
+trades.
+
+```bash
+make dashboard
+```
+
+The next milestone will introduce the configurable Quality Momentum strategy
+and persisted Buy, Hold, Watch, Reduce and Avoid signals.

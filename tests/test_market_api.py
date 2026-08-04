@@ -24,6 +24,9 @@ def test_watchlist_and_mock_market_api(tmp_path) -> None:
             "/api/v1/market/refresh",
             json={"symbols": ["AAPL"], "provider": "mock", "limit": 3},
         )
+        analysis = client.get(
+            "/api/v1/analysis/AAPL/technical?provider=mock&refresh=true&limit=100"
+        )
         instruments = client.get("/api/v1/instruments")
 
     assert created.status_code == 201
@@ -34,3 +37,7 @@ def test_watchlist_and_mock_market_api(tmp_path) -> None:
     assert len(market.json()["bars"]) == 3
     assert refreshed.status_code == 200
     assert refreshed.json()["bars_stored"] == 0
+    assert analysis.status_code == 200
+    assert analysis.json()["data_points"] == 100
+    assert analysis.json()["technical_score"] >= 0
+    assert analysis.json()["indicators"]["sma_20"] is not None
