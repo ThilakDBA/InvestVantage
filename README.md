@@ -170,5 +170,15 @@ trades.
 make dashboard
 ```
 
-The next milestone will introduce the configurable Quality Momentum strategy
-and persisted Buy, Hold, Watch, Reduce and Avoid signals.
+Milestone 4 adds the deterministic Quality Momentum Swing strategy and persists
+explainable `BUY`, `WATCH`, `HOLD`, `REDUCE`, and `AVOID` research signals.
+
+```text
+POST /api/v1/signals/generate
+GET  /api/v1/signals
+GET  /api/v1/signals/latest/{symbol}
+```
+
+Signals include confidence, risk, entry, stop and target references, positive
+and negative factors, invalidation conditions and data completeness. They are
+research outputs only; broker order submission remains disabled.

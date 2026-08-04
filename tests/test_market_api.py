@@ -27,6 +27,11 @@ def test_watchlist_and_mock_market_api(tmp_path) -> None:
         analysis = client.get(
             "/api/v1/analysis/AAPL/technical?provider=mock&refresh=true&limit=100"
         )
+        generated = client.post(
+            "/api/v1/signals/generate",
+            json={"symbols": ["AAPL"], "provider": "mock", "limit": 100},
+        )
+        signals = client.get("/api/v1/signals")
         instruments = client.get("/api/v1/instruments")
 
     assert created.status_code == 201
@@ -41,3 +46,8 @@ def test_watchlist_and_mock_market_api(tmp_path) -> None:
     assert analysis.json()["data_points"] == 100
     assert analysis.json()["technical_score"] >= 0
     assert analysis.json()["indicators"]["sma_20"] is not None
+    assert generated.status_code == 200
+    assert generated.json()[0]["symbol"] == "AAPL"
+    assert generated.json()[0]["recommendation"] in {"BUY", "WATCH", "HOLD", "REDUCE", "AVOID"}
+    assert signals.status_code == 200
+    assert len(signals.json()) == 1

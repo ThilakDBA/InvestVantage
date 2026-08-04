@@ -90,6 +90,30 @@ with content:
     )
     st.dataframe(indicator_table, use_container_width=True, hide_index=True)
 
+    st.subheader("Quality Momentum signal")
+    if st.button("Generate research signal", use_container_width=True):
+        signal_response = httpx.post(
+            f"{API_BASE_URL}/api/v1/signals/generate",
+            json={"symbols": [symbol], "provider": provider, "limit": requested_points},
+            timeout=30,
+        )
+        if signal_response.is_success:
+            signal = signal_response.json()[0]
+            left, middle, right = st.columns(3)
+            left.metric("Recommendation", signal["recommendation"])
+            middle.metric("Confidence", f'{signal["confidence_score"]}/100')
+            right.metric("Risk", f'{signal["risk_score"]}/100')
+            st.write(signal["explanation"])
+            st.write(
+                {
+                    "Entry": signal["entry_price"],
+                    "Stop reference": signal["stop_price"],
+                    "Target reference": signal["target_price"],
+                }
+            )
+        else:
+            st.error(signal_response.json().get("detail", "Signal generation failed"))
+
 st.divider()
 st.caption(
     "Research only. Recommendations are not guaranteed and users remain responsible "
