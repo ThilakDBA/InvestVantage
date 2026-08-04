@@ -9,11 +9,17 @@
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "forwardPorts": [
-    8000
+    8000,
+    8501
   ],
   "portsAttributes": {
     "8000": {
       "label": "InvestVantage API",
+      "onAutoForward": "openPreview",
+      "visibility": "private"
+    },
+    "8501": {
+      "label": "InvestVantage Dashboard",
       "onAutoForward": "openPreview",
       "visibility": "private"
     }

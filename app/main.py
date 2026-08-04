@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
+from app.api.analysis import router as analysis_router
 from app.api.health import router as health_router
 from app.api.market import router as market_router
 from app.core.config import Settings, get_settings
@@ -36,6 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     application.include_router(health_router)
     application.include_router(market_router)
+    application.include_router(analysis_router)
     return application
 
 
