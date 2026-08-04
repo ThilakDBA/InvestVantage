@@ -223,3 +223,12 @@ The current universe is today's configured watchlist, so results retain survivor
 future point-in-time universe dataset is required to remove that limitation. Historical
 fundamentals are also excluded until filing-date-aware snapshots are available. Broker execution
 remains disabled; backtest settings cannot submit an order.
+
+### Intraday chart windows
+
+The dashboard supports preset `15D`, `7D`, `3D`, `1D`, `12H`, `8H`, `4H`, `2H`, and `1H`
+windows, plus manual start/end date and time selection in New York, UTC, or India time. Presets
+automatically choose a practical Twelve Data candle interval from `1min` through `1day`.
+Price-history uniqueness includes the interval, so intraday bars cannot overwrite daily bars.
+Strategy signals and backtests continue to use `1day` bars even while an intraday chart is open.
+Intraday availability and lookback depth depend on the configured provider subscription.

@@ -1,4 +1,6 @@
 import os
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 import pandas as pd
@@ -36,20 +38,85 @@ with controls:
     symbol = st.selectbox("Instrument", [item["symbol"] for item in catalogue])
     selected_instrument = next(item for item in catalogue if item["symbol"] == symbol)
     provider = st.selectbox("Market data", ["mock", "twelve_data", "finnhub"])
-    requested_points = st.slider("Price bars", 35, 250, 100)
-    analyse = st.button("Analyse", type="primary", use_container_width=True)
+    range_mode = st.radio("Chart range", ["Preset", "Manual"], horizontal=True)
+    preset_intervals = {
+        "15D": (timedelta(days=15), "1h"),
+        "7D": (timedelta(days=7), "30min"),
+        "3D": (timedelta(days=3), "15min"),
+        "1D": (timedelta(days=1), "5min"),
+        "12H": (timedelta(hours=12), "5min"),
+        "8H": (timedelta(hours=8), "5min"),
+        "4H": (timedelta(hours=4), "1min"),
+        "2H": (timedelta(hours=2), "1min"),
+        "1H": (timedelta(hours=1), "1min"),
+        "3M": (timedelta(days=92), "1day"),
+        "1Y": (timedelta(days=366), "1day"),
+    }
+    if range_mode == "Preset":
+        chart_window = st.selectbox("Window", list(preset_intervals), index=1)
+        selected_delta, selected_interval = preset_intervals[chart_window]
+        manual_start = manual_end = None
+        range_is_valid = True
+    else:
+        selected_interval = st.selectbox(
+            "Candle interval",
+            ["1min", "5min", "15min", "30min", "1h", "2h", "4h", "8h", "1day"],
+            index=4,
+        )
+        manual_timezone = st.selectbox(
+            "Time zone", ["America/New_York", "UTC", "Asia/Kolkata"]
+        )
+        manual_start_date = st.date_input(
+            "Start date", value=datetime.now().date() - timedelta(days=7)
+        )
+        manual_start_time = st.time_input("Start time", value=datetime.min.time())
+        manual_end_date = st.date_input("End date", value=datetime.now().date())
+        manual_end_time = st.time_input("End time", value=datetime.now().time())
+        selected_zone = ZoneInfo(manual_timezone)
+        manual_start = datetime.combine(
+            manual_start_date, manual_start_time, tzinfo=selected_zone
+        ).astimezone(UTC)
+        manual_end = datetime.combine(
+            manual_end_date, manual_end_time, tzinfo=selected_zone
+        ).astimezone(UTC)
+        chart_window = "Manual"
+        selected_delta = manual_end - manual_start
+        range_is_valid = manual_end > manual_start
+        if not range_is_valid:
+            st.error("End date/time must be after start date/time.")
+    requested_points = st.slider("Maximum price bars", 35, 2000, 500)
+    analyse = st.button(
+        "Analyse", type="primary", use_container_width=True, disabled=not range_is_valid
+    )
     st.info(
         "Mock data is deterministic. Finnhub provides one quote and is not suitable "
         "for indicators yet."
     )
 
 with content:
-    context = (symbol, provider, requested_points)
+    context = (
+        symbol,
+        provider,
+        requested_points,
+        selected_interval,
+        chart_window,
+        manual_start,
+        manual_end,
+    )
     if analyse:
         try:
+            analysis_params = {
+                "provider": provider,
+                "refresh": "true",
+                "limit": requested_points,
+                "interval": selected_interval,
+            }
+            if manual_start and manual_end:
+                analysis_params["start_at"] = manual_start.isoformat()
+                analysis_params["end_at"] = manual_end.isoformat()
             response = httpx.get(
                 f"{API_BASE_URL}/api/v1/analysis/{symbol}/technical",
-                params={"provider": provider, "refresh": "true", "limit": requested_points},
+                params=analysis_params,
                 timeout=30,
             )
             response.raise_for_status()
@@ -76,8 +143,8 @@ with content:
     rsi_value = result["indicators"]["rsi_14"]
     rsi.metric("RSI (14)", f"{rsi_value:.1f}" if rsi_value is not None else "N/A")
 
-    st.subheader(f"{symbol} daily price history")
-    history["timestamp"] = pd.to_datetime(history["timestamp"])
+    st.subheader(f"{symbol} {selected_interval} price history")
+    history["timestamp"] = pd.to_datetime(history["timestamp"], utc=True)
     history["sma_20"] = history["close"].rolling(20).mean()
     history["sma_50"] = history["close"].rolling(50).mean()
     delta = history["close"].diff()
@@ -88,22 +155,19 @@ with content:
         "close"
     ].ewm(span=26, adjust=False).mean()
     history["macd_signal"] = history["macd"].ewm(span=9, adjust=False).mean()
-    window = st.segmented_control(
-        "Chart window",
-        options=["1M", "3M", "6M", "1Y", "All"],
-        default="3M",
-    )
     latest_timestamp = history["timestamp"].max()
-    window_offsets = {
-        "1M": pd.DateOffset(months=1),
-        "3M": pd.DateOffset(months=3),
-        "6M": pd.DateOffset(months=6),
-        "1Y": pd.DateOffset(years=1),
-    }
-    if window in window_offsets:
-        chart_data = history[history["timestamp"] >= latest_timestamp - window_offsets[window]]
+    if range_mode == "Manual":
+        chart_data = history[
+            (history["timestamp"] >= manual_start) & (history["timestamp"] <= manual_end)
+        ]
     else:
-        chart_data = history
+        chart_data = history[history["timestamp"] >= latest_timestamp - selected_delta]
+    if chart_data.empty:
+        st.warning("No bars exist inside the selected date/time range.")
+        st.stop()
+    display_timezone = manual_timezone if range_mode == "Manual" else "America/New_York"
+    chart_data = chart_data.copy()
+    chart_data["timestamp"] = chart_data["timestamp"].dt.tz_convert(display_timezone)
     chart = make_subplots(
         rows=4,
         cols=1,
@@ -170,7 +234,7 @@ with content:
         hovermode="x unified",
         xaxis_rangeslider_visible=False,
         legend={"orientation": "h", "y": 1.02, "x": 0},
-        uirevision=f"{symbol}-{provider}-{window}",
+        uirevision=f"{symbol}-{provider}-{selected_interval}-{chart_window}",
     )
     chart.update_xaxes(
         range=[chart_data["timestamp"].min(), chart_data["timestamp"].max()],
@@ -185,8 +249,9 @@ with content:
         config={"displaylogo": False, "responsive": True, "scrollZoom": True},
     )
     st.caption(
-        f"{provider} · daily OHLCV · {chart_data['timestamp'].min():%d %b %Y} to "
-        f"{chart_data['timestamp'].max():%d %b %Y} · {len(chart_data)} bars. "
+        f"{provider} · {selected_interval} OHLCV · {display_timezone} · "
+        f"{chart_data['timestamp'].min():%d %b %Y %H:%M} to "
+        f"{chart_data['timestamp'].max():%d %b %Y %H:%M} · {len(chart_data)} bars. "
         "Drag to zoom, double-click to reset, and hover for exact values."
     )
 

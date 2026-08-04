@@ -36,12 +36,15 @@ def _response(signal: Signal) -> SignalResponse:
     )
 
 
-def _bars(session, instrument_id: int, provider: str) -> list[MarketBar]:
+def _bars(
+    session, instrument_id: int, provider: str, interval: str = "1day"
+) -> list[MarketBar]:
     rows = session.scalars(
         select(PriceHistory)
         .where(
             PriceHistory.instrument_id == instrument_id,
             PriceHistory.data_source == provider,
+            PriceHistory.interval == interval,
         )
         .order_by(PriceHistory.timestamp)
     )

@@ -19,16 +19,35 @@ class TwelveDataMarketDataProvider(MarketDataProvider):
         self.client = client
 
     async def fetch_bars(self, symbol: str, limit: int = 100) -> list[MarketBar]:
+        return await self.fetch_bars_interval(symbol, limit, "1day")
+
+    async def fetch_bars_interval(
+        self,
+        symbol: str,
+        limit: int = 100,
+        interval: str = "1day",
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+    ) -> list[MarketBar]:
         if not self.api_key:
             raise MarketDataConfigurationError("Twelve Data API key is not configured")
+        allowed_intervals = {"1min", "5min", "15min", "30min", "1h", "2h", "4h", "8h", "1day"}
+        if interval not in allowed_intervals:
+            raise MarketDataError(f"Unsupported Twelve Data interval: {interval}")
+        params = {
+            "symbol": symbol.upper(),
+            "interval": interval,
+            "outputsize": max(1, min(limit, 5000)),
+            "order": "asc",
+            "timezone": "UTC",
+        }
+        if start_at:
+            params["start_date"] = start_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        if end_at:
+            params["end_date"] = end_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
         payload = await self.client.get(
             self.url,
-            params={
-                "symbol": symbol.upper(),
-                "interval": "1day",
-                "outputsize": max(1, min(limit, 5000)),
-                "order": "asc",
-            },
+            params=params,
             headers={"Authorization": f"apikey {self.api_key}"},
         )
         if payload.get("status") == "error":
@@ -36,8 +55,8 @@ class TwelveDataMarketDataProvider(MarketDataProvider):
         values = payload.get("values")
         if not isinstance(values, list):
             raise MarketDataError("Twelve Data returned no price history for this symbol")
-        timezone = self._timezone(payload)
-        bars = [self._parse_bar(value, timezone) for value in values]
+        timezone = ZoneInfo("UTC") if interval != "1day" else self._timezone(payload)
+        bars = [self._parse_bar(value, timezone, interval) for value in values]
         return sorted(bars, key=lambda bar: bar.timestamp)
 
     @staticmethod
@@ -49,7 +68,7 @@ class TwelveDataMarketDataProvider(MarketDataProvider):
             return ZoneInfo("UTC")
 
     @staticmethod
-    def _parse_bar(value: dict, timezone: ZoneInfo) -> MarketBar:
+    def _parse_bar(value: dict, timezone: ZoneInfo, interval: str = "1day") -> MarketBar:
         try:
             timestamp = datetime.fromisoformat(str(value["datetime"])).replace(tzinfo=timezone)
             return MarketBar(
@@ -60,6 +79,7 @@ class TwelveDataMarketDataProvider(MarketDataProvider):
                 close=float(value["close"]),
                 adjusted_close=float(value["close"]),
                 volume=int(value["volume"]) if value.get("volume") is not None else None,
+                interval=interval,
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise MarketDataError("Twelve Data returned a malformed price bar") from exc

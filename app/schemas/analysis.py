@@ -30,6 +30,7 @@ class IndicatorValues(BaseModel):
 class TechnicalAnalysisResponse(BaseModel):
     symbol: str
     provider: str
+    interval: str
     trend: str
     technical_score: int
     data_points: int
