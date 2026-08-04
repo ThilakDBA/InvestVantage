@@ -7,14 +7,19 @@ from fastapi import FastAPI
 from app.api.analysis import router as analysis_router
 from app.api.health import router as health_router
 from app.api.market import router as market_router
+from app.api.portfolio import router as portfolio_router
+from app.api.research import router as research_router
 from app.api.signals import router as signals_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.database.base import Base
 from app.database.models import (  # noqa: F401
     Instrument,
+    PortfolioHolding,
     PriceHistory,
+    ResearchSnapshot,
     Signal,
+    SignalOutcome,
     Watchlist,
     WatchlistItem,
 )
@@ -45,6 +50,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(health_router)
     application.include_router(market_router)
     application.include_router(analysis_router)
+    application.include_router(research_router)
+    application.include_router(portfolio_router)
     application.include_router(signals_router)
     return application
 

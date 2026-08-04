@@ -182,3 +182,31 @@ GET  /api/v1/signals/latest/{symbol}
 Signals include confidence, risk, entry, stop and target references, positive
 and negative factors, invalidation conditions and data completeness. They are
 research outputs only; broker order submission remains disabled.
+
+## Real research-data ingestion
+
+Keep `FINNHUB_API_KEY` and `TWELVE_DATA_API_KEY` in Codespaces secrets or a local ignored
+`.env` file. Never commit their values. After the database and migrations are running:
+
+```bash
+docker compose --profile ingestion run --rm seed-real
+docker compose up --build -d api dashboard
+```
+
+The job stores up to 500 real daily Twelve Data OHLCV bars and, for stocks, Finnhub
+fundamental metrics, recent company news and earnings-calendar events. Price bars are rejected
+when timestamps are unordered, duplicated, stale, in the future, or contain invalid OHLCV
+values. Provider and retrieval times remain visible through the API.
+
+```text
+GET  /api/v1/research/{symbol}
+GET  /api/v1/research/{symbol}?refresh=true
+POST /api/v1/signals/outcomes/evaluate?horizon_days=20
+GET  /api/v1/signals/outcomes
+GET  /api/v1/signals/backtest/{symbol}?provider=twelve_data&horizon_days=20
+```
+
+Quality Momentum now combines technical (40%), fundamental (20%), news (10%), market-regime
+(10%), sector-relative strength (10%) and portfolio suitability (10%) scores. Missing provider
+data remains `null` and lowers `data_completeness`; it is never silently replaced with mock
+data. News scoring is a deterministic headline-cue baseline and requires human review.

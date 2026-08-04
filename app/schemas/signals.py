@@ -18,6 +18,11 @@ class SignalResponse(BaseModel):
     strategy_version: str
     recommendation: str
     technical_score: int
+    fundamental_score: int | None
+    news_score: int | None
+    market_regime_score: int | None
+    sector_strength_score: int | None
+    portfolio_score: int | None
     confidence_score: int
     risk_score: int
     entry_price: float

@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 import httpx
 
@@ -18,7 +19,7 @@ class ResilientJsonClient:
         *,
         params: dict[str, str | int] | None = None,
         headers: dict[str, str] | None = None,
-    ) -> dict:
+    ) -> Any:
         for attempt in range(self.max_retries + 1):
             try:
                 async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
@@ -27,7 +28,7 @@ class ResilientJsonClient:
                     raise MarketDataRateLimitError("Market-data provider rate limit reached")
                 response.raise_for_status()
                 payload = response.json()
-                if not isinstance(payload, dict):
+                if not isinstance(payload, (dict, list)):
                     raise MarketDataError("Market-data provider returned an invalid response")
                 return payload
             except MarketDataRateLimitError:

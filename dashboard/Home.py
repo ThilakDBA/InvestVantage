@@ -34,6 +34,7 @@ controls, content = st.columns([1, 3])
 with controls:
     st.subheader("Analysis controls")
     symbol = st.selectbox("Instrument", [item["symbol"] for item in catalogue])
+    selected_instrument = next(item for item in catalogue if item["symbol"] == symbol)
     provider = st.selectbox("Market data", ["mock", "twelve_data", "finnhub"])
     requested_points = st.slider("Price bars", 35, 250, 100)
     analyse = st.button("Analyse", type="primary", use_container_width=True)
@@ -77,19 +78,38 @@ with content:
 
     st.subheader(f"{symbol} daily price history")
     history["timestamp"] = pd.to_datetime(history["timestamp"])
+    history["sma_20"] = history["close"].rolling(20).mean()
+    history["sma_50"] = history["close"].rolling(50).mean()
+    delta = history["close"].diff()
+    gain = delta.clip(lower=0).rolling(14).mean()
+    loss = -delta.clip(upper=0).rolling(14).mean()
+    history["rsi_14"] = 100 - 100 / (1 + gain / loss.replace(0, float("nan")))
+    history["macd"] = history["close"].ewm(span=12, adjust=False).mean() - history[
+        "close"
+    ].ewm(span=26, adjust=False).mean()
+    history["macd_signal"] = history["macd"].ewm(span=9, adjust=False).mean()
     window = st.segmented_control(
         "Chart window",
         options=["1M", "3M", "6M", "1Y", "All"],
         default="3M",
     )
-    window_sizes = {"1M": 22, "3M": 66, "6M": 132, "1Y": 252}
-    chart_data = history.tail(window_sizes.get(window, len(history)))
+    latest_timestamp = history["timestamp"].max()
+    window_offsets = {
+        "1M": pd.DateOffset(months=1),
+        "3M": pd.DateOffset(months=3),
+        "6M": pd.DateOffset(months=6),
+        "1Y": pd.DateOffset(years=1),
+    }
+    if window in window_offsets:
+        chart_data = history[history["timestamp"] >= latest_timestamp - window_offsets[window]]
+    else:
+        chart_data = history
     chart = make_subplots(
-        rows=2,
+        rows=4,
         cols=1,
         shared_xaxes=True,
         vertical_spacing=0.04,
-        row_heights=[0.76, 0.24],
+        row_heights=[0.55, 0.18, 0.14, 0.13],
     )
     chart.add_trace(
         go.Candlestick(
@@ -106,6 +126,16 @@ with content:
         col=1,
     )
     chart.add_trace(
+        go.Scatter(x=chart_data["timestamp"], y=chart_data["sma_20"], name="SMA 20"),
+        row=1,
+        col=1,
+    )
+    chart.add_trace(
+        go.Scatter(x=chart_data["timestamp"], y=chart_data["sma_50"], name="SMA 50"),
+        row=1,
+        col=1,
+    )
+    chart.add_trace(
         go.Bar(
             x=chart_data["timestamp"],
             y=chart_data["volume"].fillna(0),
@@ -115,14 +145,39 @@ with content:
         row=2,
         col=1,
     )
+    chart.add_trace(
+        go.Scatter(x=chart_data["timestamp"], y=chart_data["rsi_14"], name="RSI 14"),
+        row=3,
+        col=1,
+    )
+    chart.add_hline(y=70, line_dash="dot", line_color="#ef4444", row=3, col=1)
+    chart.add_hline(y=30, line_dash="dot", line_color="#14b8a6", row=3, col=1)
+    chart.add_trace(
+        go.Scatter(x=chart_data["timestamp"], y=chart_data["macd"], name="MACD"),
+        row=4,
+        col=1,
+    )
+    chart.add_trace(
+        go.Scatter(
+            x=chart_data["timestamp"], y=chart_data["macd_signal"], name="MACD signal"
+        ),
+        row=4,
+        col=1,
+    )
     chart.update_layout(
-        height=560,
+        height=780,
         margin={"l": 10, "r": 10, "t": 20, "b": 10},
         hovermode="x unified",
         xaxis_rangeslider_visible=False,
         legend={"orientation": "h", "y": 1.02, "x": 0},
+        uirevision=f"{symbol}-{provider}-{window}",
     )
-    chart.update_xaxes(showspikes=True, spikemode="across", spikesnap="cursor")
+    chart.update_xaxes(
+        range=[chart_data["timestamp"].min(), chart_data["timestamp"].max()],
+        showspikes=True,
+        spikemode="across",
+        spikesnap="cursor",
+    )
     chart.update_yaxes(fixedrange=False)
     st.plotly_chart(
         chart,
@@ -130,9 +185,73 @@ with content:
         config={"displaylogo": False, "responsive": True, "scrollZoom": True},
     )
     st.caption(
-        "Daily OHLCV bars. Drag to zoom, double-click to reset, and hover for exact values. "
-        "Intraday intervals will be added with the streaming market-data phase."
+        f"{provider} · daily OHLCV · {chart_data['timestamp'].min():%d %b %Y} to "
+        f"{chart_data['timestamp'].max():%d %b %Y} · {len(chart_data)} bars. "
+        "Drag to zoom, double-click to reset, and hover for exact values."
     )
+
+    research_tab, news_tab, earnings_tab = st.tabs(["Fundamentals", "News", "Earnings"])
+    research_response = httpx.get(
+        f"{API_BASE_URL}/api/v1/research/{symbol}", timeout=20
+    )
+    research = research_response.json() if research_response.is_success else None
+    research_refresh_supported = selected_instrument["asset_type"].upper() == "STOCK"
+    if st.button(
+        "Refresh fundamentals, news and earnings",
+        use_container_width=True,
+        disabled=not research_refresh_supported,
+    ):
+        refresh_response = httpx.get(
+            f"{API_BASE_URL}/api/v1/research/{symbol}",
+            params={"refresh": "true"},
+            timeout=45,
+        )
+        if refresh_response.is_success:
+            st.success("Research data refreshed from Finnhub")
+            st.rerun()
+        else:
+            st.error(refresh_response.json().get("detail", "Research refresh failed"))
+    with research_tab:
+        if research and research["fundamentals"]["available"]:
+            st.metric("Fundamental score", f"{research['fundamentals']['score']}/100")
+            metrics = research["fundamentals"]["data"]
+            selected = {
+                key: metrics.get(key)
+                for key in (
+                    "peTTM",
+                    "roeTTM",
+                    "netProfitMarginTTM",
+                    "revenueGrowthTTMYoy",
+                    "epsGrowthTTMYoy",
+                    "52WeekHigh",
+                    "52WeekLow",
+                )
+            }
+            st.dataframe(
+                pd.DataFrame(selected.items(), columns=["Metric", "Value"]),
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.info("No persisted fundamentals. Run the real-data seed command.")
+    with news_tab:
+        items = research["news"]["data"] if research and research["news"]["available"] else []
+        if items:
+            st.metric("Headline score", f"{research['news']['score']}/100")
+            for item in items[:10]:
+                st.markdown(f"**{item.get('headline', 'Untitled')}**  \n{item.get('source', '')}")
+        else:
+            st.info("No persisted company news.")
+    with earnings_tab:
+        events = (
+            research["earnings"]["data"]
+            if research and research["earnings"]["available"]
+            else []
+        )
+        if events:
+            st.dataframe(pd.DataFrame(events), use_container_width=True, hide_index=True)
+        else:
+            st.info("No earnings events are available.")
 
     positives, negatives = st.columns(2)
     with positives:
@@ -151,7 +270,21 @@ with content:
     st.dataframe(indicator_table, use_container_width=True, hide_index=True)
 
     st.subheader("Quality Momentum signal")
-    if st.button("Generate research signal", use_container_width=True):
+    signal_supported = provider == "twelve_data"
+    if provider == "mock":
+        st.warning("Mock prices are synthetic. Signal generation is disabled for research use.")
+    elif provider == "finnhub":
+        st.warning("Finnhub currently supplies one quote, not enough history for a signal.")
+    else:
+        st.caption(
+            "Technical-only research signal using real daily history. Fundamentals, news, "
+            "market regime and portfolio suitability are not included yet."
+        )
+    if st.button(
+        "Generate research signal",
+        use_container_width=True,
+        disabled=not signal_supported,
+    ):
         signal_response = httpx.post(
             f"{API_BASE_URL}/api/v1/signals/generate",
             json={"symbols": [symbol], "provider": provider, "limit": requested_points},
@@ -164,6 +297,20 @@ with content:
             middle.metric("Confidence", f"{signal['confidence_score']}/100")
             right.metric("Risk", f"{signal['risk_score']}/100")
             st.write(signal["explanation"])
+            st.dataframe(
+                pd.DataFrame(
+                    [
+                        {"Component": "Technical", "Score": signal["technical_score"]},
+                        {"Component": "Fundamentals", "Score": signal["fundamental_score"]},
+                        {"Component": "News", "Score": signal["news_score"]},
+                        {"Component": "Market regime", "Score": signal["market_regime_score"]},
+                        {"Component": "Sector strength", "Score": signal["sector_strength_score"]},
+                        {"Component": "Portfolio", "Score": signal["portfolio_score"]},
+                    ]
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
             st.write(
                 {
                     "Entry": signal["entry_price"],
@@ -173,6 +320,59 @@ with content:
             )
         else:
             st.error(signal_response.json().get("detail", "Signal generation failed"))
+
+    st.subheader("Tracked signal outcomes")
+    outcome_response = httpx.get(f"{API_BASE_URL}/api/v1/signals/outcomes", timeout=10)
+    outcomes = outcome_response.json() if outcome_response.is_success else []
+    if outcomes:
+        outcome_frame = pd.DataFrame(outcomes)
+        st.bar_chart(outcome_frame, x="symbol", y="return_percentage")
+        st.dataframe(outcome_frame, use_container_width=True, hide_index=True)
+    else:
+        st.info("Outcomes appear after enough post-signal trading days have been collected.")
+
+    backtest_response = httpx.get(
+        f"{API_BASE_URL}/api/v1/signals/backtest/{symbol}",
+        params={"provider": provider, "horizon_days": 20},
+        timeout=20,
+    )
+    if backtest_response.is_success:
+        backtest = backtest_response.json()
+        left, right = st.columns(2)
+        left.metric("Walk-forward win rate", f"{backtest['win_rate']}%")
+        right.metric("Average 20-day return", f"{backtest['average_return']}%")
+        st.caption(backtest["warning"])
+
+    st.subheader("Portfolio suitability")
+    with st.expander("Add or update a paper holding"):
+        holding_quantity = st.number_input("Quantity", min_value=0.0, value=0.0)
+        holding_cost = st.number_input("Average cost", min_value=0.0, value=0.0)
+        if st.button("Save paper holding", use_container_width=True):
+            holding_response = httpx.put(
+                f"{API_BASE_URL}/api/v1/portfolio/holdings",
+                json={
+                    "symbol": symbol,
+                    "quantity": holding_quantity,
+                    "average_cost": holding_cost,
+                },
+                timeout=10,
+            )
+            if holding_response.is_success:
+                st.success("Paper holding saved")
+                st.rerun()
+            else:
+                st.error(holding_response.json().get("detail", "Holding update failed"))
+    exposure_response = httpx.get(f"{API_BASE_URL}/api/v1/portfolio/exposure", timeout=10)
+    exposure = exposure_response.json() if exposure_response.is_success else {}
+    if exposure.get("sector_exposure"):
+        exposure_frame = pd.DataFrame(
+            exposure["sector_exposure"].items(), columns=["Sector", "Exposure %"]
+        )
+        st.bar_chart(exposure_frame, x="Sector", y="Exposure %")
+        for warning in exposure.get("warnings", []):
+            st.warning(warning)
+    else:
+        st.info("Add paper holdings through the portfolio API to enable exposure guardrails.")
 
 st.divider()
 st.caption(

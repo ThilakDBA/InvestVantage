@@ -56,6 +56,24 @@ services:
         condition: service_completed_successfully
     networks: [investvantage]
 
+  seed-real:
+    build: .
+    profiles: ["ingestion"]
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-investvantage_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-investvantage}
+      TRADING_MODE: paper
+      ENABLE_BROKER_ORDERS: "false"
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
+      MARKET_DATA_TIMEOUT_SECONDS: ${MARKET_DATA_TIMEOUT_SECONDS:-10}
+      MARKET_DATA_MAX_RETRIES: ${MARKET_DATA_MAX_RETRIES:-2}
+    command: ["python", "-m", "app.scripts.seed_real_data"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [investvantage]
+
   api:
     build: .
     restart: unless-stopped

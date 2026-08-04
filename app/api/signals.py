@@ -5,7 +5,20 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.analysis import analyse_bars
-from app.database.models import Instrument, PriceHistory, Signal
+from app.analysis.context import (
+    SECTOR_BENCHMARKS,
+    market_regime,
+    portfolio_suitability,
+    relative_strength,
+)
+from app.database.models import (
+    Instrument,
+    PortfolioHolding,
+    PriceHistory,
+    ResearchSnapshot,
+    Signal,
+    SignalOutcome,
+)
 from app.providers import create_market_data_provider
 from app.providers.base import MarketBar, MarketDataError
 from app.schemas.signals import SignalGenerateRequest, SignalResponse
@@ -46,6 +59,14 @@ def _bars(session, instrument_id: int, provider: str) -> list[MarketBar]:
     ]
 
 
+def _research_scores(session, instrument_id: int) -> tuple[int | None, int | None]:
+    rows = session.scalars(
+        select(ResearchSnapshot).where(ResearchSnapshot.instrument_id == instrument_id)
+    ).all()
+    scores = {row.data_type: row.score for row in rows}
+    return scores.get("fundamentals"), scores.get("news")
+
+
 @router.post("/generate", response_model=list[SignalResponse])
 async def generate_signals(
     payload: SignalGenerateRequest, request: Request
@@ -68,21 +89,51 @@ async def generate_signals(
                     "At least 35 price bars are required",
                 )
             analysis = analyse_bars(bars)
-            decision = generate_decision(analysis, bars[-1].close)
+            fundamental, news = _research_scores(session, instrument.id)
+            spy = session.scalar(select(Instrument).where(Instrument.symbol == "SPY"))
+            spy_bars = _bars(session, spy.id, provider.name) if spy else []
+            regime_value, regime_factor = market_regime(spy_bars)
+            regime = regime_value if spy_bars else None
+            sector_symbol = SECTOR_BENCHMARKS.get(instrument.sector or "")
+            sector = session.scalar(select(Instrument).where(Instrument.symbol == sector_symbol))
+            sector_bars = _bars(session, sector.id, provider.name) if sector else []
+            sector_value, sector_factor = relative_strength(bars, sector_bars)
+            sector_score = sector_value if sector_bars else None
+            holdings = session.scalars(
+                select(Instrument.sector)
+                .join(PortfolioHolding, PortfolioHolding.instrument_id == Instrument.id)
+                .where(PortfolioHolding.quantity > 0)
+            ).all()
+            portfolio_score, portfolio_factor = portfolio_suitability(holdings, instrument.sector)
+            decision = generate_decision(
+                analysis,
+                bars[-1].close,
+                fundamental_score=fundamental,
+                news_score=news,
+                market_regime_score=regime,
+                sector_strength_score=sector_score,
+                portfolio_score=portfolio_score,
+            )
             now = datetime.now(UTC)
-            completeness = round(
-                sum(
-                    value is not None
-                    for value in (
-                        analysis.sma_20,
-                        analysis.sma_50,
-                        analysis.rsi_14,
-                        analysis.macd_signal,
-                        analysis.atr_14,
-                    )
+            technical_complete = all(
+                value is not None
+                for value in (
+                    analysis.sma_20,
+                    analysis.sma_50,
+                    analysis.rsi_14,
+                    analysis.macd_signal,
+                    analysis.atr_14,
                 )
-                / 5
-                * 100
+            )
+            completeness = sum(
+                (
+                    40 if technical_complete else 20,
+                    20 if fundamental is not None else 0,
+                    10 if news is not None else 0,
+                    10 if spy_bars else 0,
+                    10 if sector_bars else 0,
+                    10,
+                )
             )
             signal = Signal(
                 instrument_id=instrument.id,
@@ -90,6 +141,11 @@ async def generate_signals(
                 strategy_version="1.0",
                 recommendation=decision.recommendation,
                 technical_score=analysis.score,
+                fundamental_score=fundamental,
+                news_score=news,
+                market_regime_score=regime,
+                sector_strength_score=sector_score,
+                portfolio_score=portfolio_score,
                 confidence_score=decision.confidence_score,
                 risk_score=decision.risk_score,
                 entry_price=decision.entry_price,
@@ -97,7 +153,8 @@ async def generate_signals(
                 target_price=decision.target_price,
                 holding_period_days=20,
                 explanation=decision.explanation,
-                positive_factors=analysis.positive_factors,
+                positive_factors=analysis.positive_factors
+                + [regime_factor, sector_factor, portfolio_factor],
                 negative_factors=analysis.negative_factors,
                 invalidation_conditions=decision.invalidation_conditions,
                 data_completeness=completeness,
@@ -137,3 +194,128 @@ def latest_signal(symbol: str, request: Request) -> SignalResponse:
         if signal is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Signal not found")
         return _response(signal)
+
+
+@router.post("/outcomes/evaluate", response_model=dict)
+def evaluate_outcomes(request: Request, horizon_days: int = 20) -> dict:
+    evaluated = 0
+    with request.app.state.database.session_factory() as session:
+        signals = session.scalars(select(Signal).options(selectinload(Signal.instrument))).all()
+        for signal in signals:
+            existing = session.scalar(
+                select(SignalOutcome.id).where(
+                    SignalOutcome.signal_id == signal.id,
+                    SignalOutcome.horizon_days == horizon_days,
+                )
+            )
+            if existing:
+                continue
+            prices = session.scalars(
+                select(PriceHistory)
+                .where(
+                    PriceHistory.instrument_id == signal.instrument_id,
+                    PriceHistory.timestamp > signal.generated_at,
+                )
+                .order_by(PriceHistory.timestamp)
+                .limit(horizon_days)
+            ).all()
+            if len(prices) < horizon_days:
+                continue
+            entry = signal.entry_price
+            returns = [(price.close / entry - 1) * 100 for price in prices]
+            session.add(
+                SignalOutcome(
+                    signal_id=signal.id,
+                    horizon_days=horizon_days,
+                    entry_price=entry,
+                    exit_price=prices[-1].close,
+                    return_percentage=returns[-1],
+                    maximum_favourable_excursion=max(returns),
+                    maximum_adverse_excursion=min(returns),
+                )
+            )
+            evaluated += 1
+        session.commit()
+    return {"evaluated": evaluated, "horizon_days": horizon_days}
+
+
+@router.get("/outcomes", response_model=list[dict])
+def list_outcomes(request: Request) -> list[dict]:
+    with request.app.state.database.session_factory() as session:
+        rows = session.execute(
+            select(SignalOutcome, Signal, Instrument)
+            .join(Signal, Signal.id == SignalOutcome.signal_id)
+            .join(Instrument, Instrument.id == Signal.instrument_id)
+            .order_by(SignalOutcome.evaluated_at.desc())
+            .limit(200)
+        ).all()
+        return [
+            {
+                "symbol": instrument.symbol,
+                "recommendation": signal.recommendation,
+                "generated_at": signal.generated_at.isoformat(),
+                "horizon_days": outcome.horizon_days,
+                "return_percentage": outcome.return_percentage,
+                "maximum_favourable_excursion": outcome.maximum_favourable_excursion,
+                "maximum_adverse_excursion": outcome.maximum_adverse_excursion,
+            }
+            for outcome, signal, instrument in rows
+        ]
+
+
+@router.get("/backtest/{symbol}", response_model=dict)
+def backtest_signal(
+    symbol: str,
+    request: Request,
+    provider: str = "twelve_data",
+    horizon_days: int = 20,
+) -> dict:
+    with request.app.state.database.session_factory() as session:
+        instrument = session.scalar(
+            select(Instrument).where(Instrument.symbol == symbol.upper())
+        )
+        if instrument is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Instrument not found")
+        bars = _bars(session, instrument.id, provider)
+    minimum = 60 + horizon_days
+    if len(bars) < minimum:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"At least {minimum} stored bars are required for this backtest",
+        )
+    trades = []
+    for index in range(60, len(bars) - horizon_days, 5):
+        window = bars[: index + 1]
+        analysis = analyse_bars(window)
+        decision = generate_decision(analysis, window[-1].close)
+        if decision.recommendation not in {"BUY", "WATCH"}:
+            continue
+        entry = window[-1].close
+        future = bars[index + 1 : index + horizon_days + 1]
+        returns = [(bar.close / entry - 1) * 100 for bar in future]
+        trades.append(
+            {
+                "entry_date": window[-1].timestamp.isoformat(),
+                "recommendation": decision.recommendation,
+                "entry_price": entry,
+                "exit_price": future[-1].close,
+                "return_percentage": round(returns[-1], 2),
+                "maximum_favourable_excursion": round(max(returns), 2),
+                "maximum_adverse_excursion": round(min(returns), 2),
+            }
+        )
+    returns = [trade["return_percentage"] for trade in trades]
+    return {
+        "symbol": instrument.symbol,
+        "provider": provider,
+        "horizon_days": horizon_days,
+        "sample_size": len(trades),
+        "win_rate": round(sum(value > 0 for value in returns) / len(returns) * 100, 2)
+        if returns
+        else None,
+        "average_return": round(sum(returns) / len(returns), 2) if returns else None,
+        "trades": trades,
+        "warning": (
+            "Exploratory walk-forward result; excludes fees, slippage and survivorship bias."
+        ),
+    }
