@@ -2,16 +2,24 @@ name: US Pilot Watchlist
 instruments:
   - symbol: SPY
     exchange: NYSEARCA
+    name: SPDR S&P 500 ETF Trust
     asset_type: ETF
   - symbol: QQQ
     exchange: NASDAQ
+    name: Invesco QQQ Trust
     asset_type: ETF
   - symbol: AAPL
     exchange: NASDAQ
+    name: Apple Inc.
     asset_type: STOCK
+    sector: Technology
   - symbol: MSFT
     exchange: NASDAQ
+    name: Microsoft Corporation
     asset_type: STOCK
+    sector: Technology
   - symbol: NVDA
     exchange: NASDAQ
+    name: NVIDIA Corporation
     asset_type: STOCK
+    sector: Technology

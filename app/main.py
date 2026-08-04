@@ -5,10 +5,11 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from app.api.health import router as health_router
+from app.api.market import router as market_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.database.base import Base
-from app.database.models import Instrument  # noqa: F401
+from app.database.models import Instrument, PriceHistory, Watchlist, WatchlistItem  # noqa: F401
 from app.database.session import Database
 
 
@@ -34,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     application.include_router(health_router)
+    application.include_router(market_router)
     return application
 
 

@@ -106,8 +106,52 @@ make compose-down
 make migrate
 ```
 
+## Market-data foundation
+
+Milestone 2 adds normalized instruments, watchlists and OHLCV history together
+with mock, Finnhub and Twelve Data provider adapters. The mock provider is the
+default so development and tests never consume a paid API quota.
+
+Compose loads the example US pilot watchlist automatically after applying
+migrations. It is idempotent and can also be run manually:
+
+```bash
+make load-watchlist
+```
+
+The following endpoints are available in `/docs`:
+
+```text
+GET  /api/v1/instruments
+GET  /api/v1/instruments/{symbol}
+GET  /api/v1/watchlists
+POST /api/v1/watchlists
+GET  /api/v1/market/{symbol}
+POST /api/v1/market/refresh
+```
+
+Use mock data without any key:
+
+```bash
+curl "http://127.0.0.1:8000/api/v1/market/AAPL?provider=mock&limit=5"
+```
+
+For a controlled provider test, add `FINNHUB_API_KEY` and
+`TWELVE_DATA_API_KEY` as Codespaces secrets, restart the Codespace, and select
+`finnhub` or `twelve_data` through the endpoint's `provider` parameter. Finnhub
+uses its real-time quote endpoint in this milestone; Twelve Data provides daily
+historical bars. Provider credentials are sent in headers and are never returned
+by the API.
+
+Supported market-data configuration:
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `MARKET_DATA_PROVIDER` | `mock`, `finnhub`, or `twelve_data` | `mock` |
+| `MARKET_DATA_TIMEOUT_SECONDS` | HTTP timeout | `10` |
+| `MARKET_DATA_MAX_RETRIES` | Transient request retries | `2` |
+
 ## Next milestone
 
-Milestone 2 will introduce market-provider interfaces, mocked provider tests,
-watchlist ingestion and controlled Finnhub/Twelve Data integration. It should
-begin only after this foundation passes in Codespaces.
+Milestone 3 will add deterministic moving averages, RSI, MACD, ATR, volume
+analysis and technical scoring on top of normalized price history.

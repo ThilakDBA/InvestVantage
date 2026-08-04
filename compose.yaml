@@ -30,10 +30,30 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-investvantage_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-investvantage}
       TRADING_MODE: paper
       ENABLE_BROKER_ORDERS: "false"
+      MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-mock}
+      MARKET_DATA_TIMEOUT_SECONDS: ${MARKET_DATA_TIMEOUT_SECONDS:-10}
+      MARKET_DATA_MAX_RETRIES: ${MARKET_DATA_MAX_RETRIES:-2}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
     command: ["alembic", "upgrade", "head"]
     depends_on:
       postgres:
         condition: service_healthy
+    networks: [investvantage]
+
+  seed:
+    build: .
+    restart: "no"
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-investvantage_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-investvantage}
+      TRADING_MODE: paper
+      ENABLE_BROKER_ORDERS: "false"
+    command: ["python", "-m", "app.scripts.load_watchlist"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     networks: [investvantage]
 
   api:
@@ -45,10 +65,15 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-investvantage_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-investvantage}
       TRADING_MODE: paper
       ENABLE_BROKER_ORDERS: "false"
+      MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-mock}
+      MARKET_DATA_TIMEOUT_SECONDS: ${MARKET_DATA_TIMEOUT_SECONDS:-10}
+      MARKET_DATA_MAX_RETRIES: ${MARKET_DATA_MAX_RETRIES:-2}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
     ports:
       - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8000}:8000"
     depends_on:
-      migrate:
+      seed:
         condition: service_completed_successfully
     healthcheck:
       test:

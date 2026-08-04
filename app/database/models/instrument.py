@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
 
@@ -29,4 +29,8 @@ class Instrument(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
+    )
+    prices: Mapped[list["PriceHistory"]] = relationship(back_populates="instrument")  # noqa: F821
+    watchlist_items: Mapped[list["WatchlistItem"]] = relationship(  # noqa: F821
+        back_populates="instrument"
     )

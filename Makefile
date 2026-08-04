@@ -1,4 +1,4 @@
-.PHONY: setup test lint format api compose-up compose-down migrate
+.PHONY: setup test lint format api compose-up compose-down migrate load-watchlist
 
 setup:
 	python -m pip install --upgrade pip
@@ -26,3 +26,6 @@ compose-down:
 
 migrate:
 	alembic upgrade head
+
+load-watchlist:
+	docker compose run --rm seed
