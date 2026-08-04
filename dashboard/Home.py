@@ -63,9 +63,7 @@ with controls:
             ["1min", "5min", "15min", "30min", "1h", "2h", "4h", "8h", "1day"],
             index=4,
         )
-        manual_timezone = st.selectbox(
-            "Time zone", ["America/New_York", "UTC", "Asia/Kolkata"]
-        )
+        manual_timezone = st.selectbox("Time zone", ["America/New_York", "UTC", "Asia/Kolkata"])
         manual_start_date = st.date_input(
             "Start date", value=datetime.now().date() - timedelta(days=7)
         )
@@ -151,9 +149,10 @@ with content:
     gain = delta.clip(lower=0).rolling(14).mean()
     loss = -delta.clip(upper=0).rolling(14).mean()
     history["rsi_14"] = 100 - 100 / (1 + gain / loss.replace(0, float("nan")))
-    history["macd"] = history["close"].ewm(span=12, adjust=False).mean() - history[
-        "close"
-    ].ewm(span=26, adjust=False).mean()
+    history["macd"] = (
+        history["close"].ewm(span=12, adjust=False).mean()
+        - history["close"].ewm(span=26, adjust=False).mean()
+    )
     history["macd_signal"] = history["macd"].ewm(span=9, adjust=False).mean()
     latest_timestamp = history["timestamp"].max()
     if range_mode == "Manual":
@@ -222,9 +221,7 @@ with content:
         col=1,
     )
     chart.add_trace(
-        go.Scatter(
-            x=chart_data["timestamp"], y=chart_data["macd_signal"], name="MACD signal"
-        ),
+        go.Scatter(x=chart_data["timestamp"], y=chart_data["macd_signal"], name="MACD signal"),
         row=4,
         col=1,
     )
@@ -254,12 +251,12 @@ with content:
         f"{chart_data['timestamp'].max():%d %b %Y %H:%M} · {len(chart_data)} bars. "
         "Drag to zoom, double-click to reset, and hover for exact values."
     )
-
     research_tab, news_tab, earnings_tab, actions_tab = st.tabs(
         ["Fundamentals", "News", "Earnings", "Corporate actions"]
     )
     research_response = httpx.get(
-        f"{API_BASE_URL}/api/v1/research/{symbol}", timeout=20
+        f"{API_BASE_URL}/api/v1/research/{symbol}",
+        timeout=20,
     )
     research = research_response.json() if research_response.is_success else None
     research_refresh_supported = selected_instrument["asset_type"].upper() == "STOCK"
@@ -311,9 +308,7 @@ with content:
             st.info("No persisted company news.")
     with earnings_tab:
         events = (
-            research["earnings"]["data"]
-            if research and research["earnings"]["available"]
-            else []
+            research["earnings"]["data"] if research and research["earnings"]["available"] else []
         )
         if events:
             st.dataframe(pd.DataFrame(events), use_container_width=True, hide_index=True)
@@ -321,15 +316,9 @@ with content:
             st.info("No earnings events are available.")
     with actions_tab:
         dividends = (
-            research["dividends"]["data"]
-            if research and research["dividends"]["available"]
-            else []
+            research["dividends"]["data"] if research and research["dividends"]["available"] else []
         )
-        splits = (
-            research["splits"]["data"]
-            if research and research["splits"]["available"]
-            else []
-        )
+        splits = research["splits"]["data"] if research and research["splits"]["available"] else []
         if dividends:
             st.markdown("**Dividends**")
             st.dataframe(pd.DataFrame(dividends), use_container_width=True, hide_index=True)

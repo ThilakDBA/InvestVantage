@@ -1,5 +1,6 @@
 from dataclasses import asdict
 from datetime import datetime
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from sqlalchemy import select
@@ -64,8 +65,8 @@ async def technical_analysis(
     refresh: bool = Query(default=True),
     limit: int = Query(default=100, ge=35, le=5000),
     interval: str = Query(default="1day"),
-    start_at: datetime | None = Query(default=None),
-    end_at: datetime | None = Query(default=None),
+    start_at: Annotated[datetime | None, Query()] = None,
+    end_at: Annotated[datetime | None, Query()] = None,
 ) -> TechnicalAnalysisResponse:
     with request.app.state.database.session_factory() as session:
         instrument = session.scalar(select(Instrument).where(Instrument.symbol == symbol.upper()))
@@ -87,9 +88,7 @@ async def technical_analysis(
                 raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
         instrument_id = instrument.id
 
-    bars = _stored_bars(
-        request, instrument_id, provider_instance.name, interval, start_at, end_at
-    )
+    bars = _stored_bars(request, instrument_id, provider_instance.name, interval, start_at, end_at)
     if len(bars) < 35:
         raise HTTPException(
             status.HTTP_409_CONFLICT,

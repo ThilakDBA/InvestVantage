@@ -28,8 +28,7 @@ def test_watchlist_and_mock_market_api(tmp_path) -> None:
             "/api/v1/analysis/AAPL/technical?provider=mock&refresh=true&limit=100"
         )
         intraday = client.get(
-            "/api/v1/analysis/AAPL/technical"
-            "?provider=mock&refresh=true&limit=100&interval=5min"
+            "/api/v1/analysis/AAPL/technical?provider=mock&refresh=true&limit=100&interval=5min"
         )
         generated = client.post(
             "/api/v1/signals/generate",

@@ -30,7 +30,7 @@ class MockMarketDataProvider(MarketDataProvider):
         }
         step = interval_steps.get(interval, timedelta(days=1))
         count = max(1, min(limit, 2000))
-        end = datetime.now(UTC).replace(hour=20, minute=0, second=0, microsecond=0)
+        end = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
         anchor = end - step * 1999
         start_index = 2000 - count
         base = 100.0 + sum(ord(character) for character in symbol.upper()) % 50

@@ -36,9 +36,7 @@ def _response(signal: Signal) -> SignalResponse:
     )
 
 
-def _bars(
-    session, instrument_id: int, provider: str, interval: str = "1day"
-) -> list[MarketBar]:
+def _bars(session, instrument_id: int, provider: str, interval: str = "1day") -> list[MarketBar]:
     rows = session.scalars(
         select(PriceHistory)
         .where(
@@ -279,9 +277,7 @@ def backtest_signal(
     slippage_bps: float = Query(default=5.0, ge=0, le=500),
 ) -> dict:
     with request.app.state.database.session_factory() as session:
-        instrument = session.scalar(
-            select(Instrument).where(Instrument.symbol == symbol.upper())
-        )
+        instrument = session.scalar(select(Instrument).where(Instrument.symbol == symbol.upper()))
         if instrument is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Instrument not found")
         bars = _bars(session, instrument.id, provider)

@@ -132,6 +132,7 @@ def analyse_bars(bars: list[MarketBar]) -> TechnicalAnalysis:
             else:
                 score -= 10
                 negative.append("MACD is below its signal line")
+
     if volume_ratio is not None:
         if volume_ratio >= 1.1:
             score += 6

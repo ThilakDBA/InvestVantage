@@ -38,9 +38,7 @@ async def fetch_and_store(
     start_at: datetime | None = None,
     end_at: datetime | None = None,
 ) -> tuple[list[MarketBar], int]:
-    bars = await provider.fetch_bars_interval(
-        instrument.symbol, limit, interval, start_at, end_at
-    )
+    bars = await provider.fetch_bars_interval(instrument.symbol, limit, interval, start_at, end_at)
     validate_bars(bars, provider.name)
     stored = 0
     for bar in bars:

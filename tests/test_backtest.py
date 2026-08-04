@@ -32,9 +32,10 @@ def test_backtest_deducts_execution_costs_and_reports_bias() -> None:
     )
     assert result["sample_size"] > 0
     assert result["total_fees"] > 0
-    assert result["trades"][0]["net_return_percentage"] < result["trades"][0][
-        "gross_return_percentage"
-    ]
+    assert (
+        result["trades"][0]["net_return_percentage"]
+        < result["trades"][0]["gross_return_percentage"]
+    )
     assert any("survivorship bias" in item for item in result["bias_disclosures"])
 
 
