@@ -62,9 +62,7 @@ def list_instruments(request: Request) -> list[Instrument]:
 @router.get("/instruments/{symbol}", response_model=InstrumentResponse)
 def get_instrument(symbol: str, request: Request) -> Instrument:
     with request.app.state.database.session_factory() as session:
-        instrument = session.scalar(
-            select(Instrument).where(Instrument.symbol == symbol.upper())
-        )
+        instrument = session.scalar(select(Instrument).where(Instrument.symbol == symbol.upper()))
         if instrument is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Instrument not found")
         return instrument
@@ -81,9 +79,7 @@ def list_watchlists(request: Request) -> list[WatchlistResponse]:
         return [_watchlist_response(watchlist) for watchlist in watchlists]
 
 
-@router.post(
-    "/watchlists", response_model=WatchlistResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/watchlists", response_model=WatchlistResponse, status_code=status.HTTP_201_CREATED)
 def create_watchlist(payload: WatchlistCreate, request: Request) -> WatchlistResponse:
     with request.app.state.database.session_factory() as session:
         watchlist = upsert_watchlist(session, payload)
@@ -105,9 +101,7 @@ async def get_market_data(
     limit: int = Query(default=100, ge=1, le=5000),
 ) -> MarketDataResponse:
     with request.app.state.database.session_factory() as session:
-        instrument = session.scalar(
-            select(Instrument).where(Instrument.symbol == symbol.upper())
-        )
+        instrument = session.scalar(select(Instrument).where(Instrument.symbol == symbol.upper()))
         if instrument is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Instrument not found")
         market_provider = _create_provider(request, provider)
