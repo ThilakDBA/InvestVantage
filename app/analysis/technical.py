@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from statistics import fmean
 from math import isclose
+from statistics import fmean
+
 from app.providers.base import MarketBar
 
 
