@@ -161,8 +161,8 @@ with content:
             signal = signal_response.json()[0]
             left, middle, right = st.columns(3)
             left.metric("Recommendation", signal["recommendation"])
-            middle.metric("Confidence", f'{signal["confidence_score"]}/100')
-            right.metric("Risk", f'{signal["risk_score"]}/100')
+            middle.metric("Confidence", f"{signal['confidence_score']}/100")
+            right.metric("Risk", f"{signal['risk_score']}/100")
             st.write(signal["explanation"])
             st.write(
                 {

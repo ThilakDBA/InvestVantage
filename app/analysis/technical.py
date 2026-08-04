@@ -41,9 +41,7 @@ def _ema_series(values: list[float], period: int) -> list[float]:
 def _rsi(values: list[float], period: int = 14) -> float | None:
     if len(values) <= period:
         return None
-    changes = [
-        current - previous for previous, current in zip(values, values[1:], strict=False)
-    ]
+    changes = [current - previous for previous, current in zip(values, values[1:], strict=False)]
     gains = [max(change, 0) for change in changes[-period:]]
     losses = [max(-change, 0) for change in changes[-period:]]
     average_gain = fmean(gains)
