@@ -64,7 +64,7 @@ with content:
     score, trend, price, rsi = st.columns(4)
     history = pd.DataFrame(result["price_history"])
     latest_close = history.iloc[-1]["close"]
-    score.metric("Technical score", f'{result["technical_score"]}/100')
+    score.metric("Technical score", f"{result['technical_score']}/100")
     trend.metric("Trend", result["trend"].title())
     price.metric("Latest close", f"${latest_close:,.2f}")
     rsi_value = result["indicators"]["rsi_14"]
@@ -116,6 +116,5 @@ with content:
 
 st.divider()
 st.caption(
-    "Research only. Recommendations are not guaranteed and users remain responsible "
-    "for decisions."
+    "Research only. Recommendations are not guaranteed and users remain responsible for decisions."
 )

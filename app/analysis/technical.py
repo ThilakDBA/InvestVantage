@@ -93,9 +93,7 @@ def analyse_bars(bars: list[MarketBar]) -> TechnicalAnalysis:
     rsi_14 = _rsi(closes)
     atr_14 = _atr(ordered)
     volume_average = fmean(volumes[-20:]) if len(volumes) >= 20 else None
-    volume_ratio = (
-        volumes[-1] / volume_average if volume_average and volumes else None
-    )
+    volume_ratio = volumes[-1] / volume_average if volume_average and volumes else None
     recent = ordered[-20:]
     support = min(bar.low for bar in recent) if len(recent) >= 20 else None
     resistance = max(bar.high for bar in recent) if len(recent) >= 20 else None
