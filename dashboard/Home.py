@@ -2,7 +2,9 @@ import os
 
 import httpx
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
+from plotly.subplots import make_subplots
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
@@ -73,9 +75,64 @@ with content:
     rsi_value = result["indicators"]["rsi_14"]
     rsi.metric("RSI (14)", f"{rsi_value:.1f}" if rsi_value is not None else "N/A")
 
-    st.subheader(f"{symbol} price history")
+    st.subheader(f"{symbol} daily price history")
     history["timestamp"] = pd.to_datetime(history["timestamp"])
-    st.line_chart(history.set_index("timestamp")["close"], height=360)
+    window = st.segmented_control(
+        "Chart window",
+        options=["1M", "3M", "6M", "1Y", "All"],
+        default="3M",
+    )
+    window_sizes = {"1M": 22, "3M": 66, "6M": 132, "1Y": 252}
+    chart_data = history.tail(window_sizes.get(window, len(history)))
+    chart = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.04,
+        row_heights=[0.76, 0.24],
+    )
+    chart.add_trace(
+        go.Candlestick(
+            x=chart_data["timestamp"],
+            open=chart_data["open"],
+            high=chart_data["high"],
+            low=chart_data["low"],
+            close=chart_data["close"],
+            increasing_line_color="#14b8a6",
+            decreasing_line_color="#ef4444",
+            name="OHLC",
+        ),
+        row=1,
+        col=1,
+    )
+    chart.add_trace(
+        go.Bar(
+            x=chart_data["timestamp"],
+            y=chart_data["volume"].fillna(0),
+            marker_color="#64748b",
+            name="Volume",
+        ),
+        row=2,
+        col=1,
+    )
+    chart.update_layout(
+        height=560,
+        margin={"l": 10, "r": 10, "t": 20, "b": 10},
+        hovermode="x unified",
+        xaxis_rangeslider_visible=False,
+        legend={"orientation": "h", "y": 1.02, "x": 0},
+    )
+    chart.update_xaxes(showspikes=True, spikemode="across", spikesnap="cursor")
+    chart.update_yaxes(fixedrange=False)
+    st.plotly_chart(
+        chart,
+        use_container_width=True,
+        config={"displaylogo": False, "responsive": True, "scrollZoom": True},
+    )
+    st.caption(
+        "Daily OHLCV bars. Drag to zoom, double-click to reset, and hover for exact values. "
+        "Intraday intervals will be added with the streaming market-data phase."
+    )
 
     positives, negatives = st.columns(2)
     with positives:

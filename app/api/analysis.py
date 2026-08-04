@@ -84,7 +84,15 @@ async def technical_analysis(
         positive_factors=positive,
         negative_factors=negative,
         price_history=[
-            PricePoint(timestamp=bar.timestamp, close=bar.close, volume=bar.volume)
-            for bar in bars[-200:]
+            PricePoint(
+                timestamp=bar.timestamp,
+                open=bar.open,
+                high=bar.high,
+                low=bar.low,
+                close=bar.close,
+                volume=bar.volume,
+                interval=bar.interval,
+            )
+            for bar in bars[-500:]
         ],
     )

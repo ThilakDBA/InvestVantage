@@ -63,7 +63,10 @@ async def generate_signals(
                 raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
             bars = _bars(session, instrument.id, provider.name)
             if len(bars) < 35:
-                raise HTTPException(status.HTTP_409_CONFLICT, "At least 35 price bars are required")
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    "At least 35 price bars are required",
+                )
             analysis = analyse_bars(bars)
             decision = generate_decision(analysis, bars[-1].close)
             now = datetime.now(UTC)

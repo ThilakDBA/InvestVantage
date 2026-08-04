@@ -5,8 +5,12 @@ from pydantic import BaseModel
 
 class PricePoint(BaseModel):
     timestamp: datetime
+    open: float
+    high: float
+    low: float
     close: float
     volume: int | None
+    interval: str
 
 
 class IndicatorValues(BaseModel):
