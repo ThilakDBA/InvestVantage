@@ -65,7 +65,17 @@ def _research_scores(session, instrument_id: int) -> tuple[int | None, int | Non
     rows = session.scalars(
         select(ResearchSnapshot).where(ResearchSnapshot.instrument_id == instrument_id)
     ).all()
-    scores = {row.data_type: row.score for row in rows}
+    now = datetime.now(UTC)
+    maximum_age = {"fundamentals": timedelta(days=7), "news": timedelta(days=2)}
+    scores = {}
+    for row in rows:
+        if row.data_type not in maximum_age or not row.retrieved_at:
+            continue
+        retrieved_at = row.retrieved_at
+        if retrieved_at.tzinfo is None:
+            retrieved_at = retrieved_at.replace(tzinfo=UTC)
+        if now - retrieved_at <= maximum_age[row.data_type]:
+            scores[row.data_type] = row.score
     return scores.get("fundamentals"), scores.get("news")
 
 
@@ -101,11 +111,19 @@ async def generate_signals(
             sector_bars = _bars(session, sector.id, provider.name) if sector else []
             sector_value, sector_factor = relative_strength(bars, sector_bars)
             sector_score = sector_value if sector_bars else None
-            holdings = session.scalars(
-                select(Instrument.sector)
+            holding_rows = session.execute(
+                select(
+                    Instrument.sector,
+                    PortfolioHolding.quantity,
+                    PortfolioHolding.average_cost,
+                )
                 .join(PortfolioHolding, PortfolioHolding.instrument_id == Instrument.id)
                 .where(PortfolioHolding.quantity > 0)
             ).all()
+            holdings = [
+                (sector_name, quantity * average_cost)
+                for sector_name, quantity, average_cost in holding_rows
+            ]
             portfolio_score, portfolio_factor = portfolio_suitability(holdings, instrument.sector)
             decision = generate_decision(
                 analysis,
@@ -137,6 +155,24 @@ async def generate_signals(
                     10,
                 )
             )
+            context_positive = []
+            context_negative = []
+            for label, value, factor in (
+                ("Market regime", regime, regime_factor),
+                ("Sector strength", sector_score, sector_factor),
+                ("Portfolio suitability", portfolio_score, portfolio_factor),
+            ):
+                if value is None:
+                    context_negative.append(f"Missing {label.lower()} data")
+                elif value >= 55:
+                    context_positive.append(factor)
+                elif value <= 45:
+                    context_negative.append(factor)
+            if fundamental is None:
+                context_negative.append("Fundamental snapshot is missing or older than 7 days")
+            if news is None:
+                context_negative.append("News snapshot is missing or older than 2 days")
+
             signal = Signal(
                 instrument_id=instrument.id,
                 strategy_name="Quality Momentum Swing",
@@ -155,9 +191,8 @@ async def generate_signals(
                 target_price=decision.target_price,
                 holding_period_days=20,
                 explanation=decision.explanation,
-                positive_factors=analysis.positive_factors
-                + [regime_factor, sector_factor, portfolio_factor],
-                negative_factors=analysis.negative_factors,
+                positive_factors=analysis.positive_factors + context_positive,
+                negative_factors=analysis.negative_factors + context_negative,
                 invalidation_conditions=decision.invalidation_conditions,
                 data_completeness=completeness,
                 generated_at=now,

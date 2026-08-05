@@ -264,10 +264,15 @@ with content:
     chart_data = chart_data.copy()
     chart_data["timestamp"] = chart_data["timestamp"].dt.tz_convert(display_timezone)
     chart_identity = f"{symbol}-{provider}-{selected_interval}-{chart_window}"
+    wheel_zoom = st.toggle(
+        "Enable mouse-wheel zoom",
+        value=False,
+        help="Enable only when you want rapid zooming; leave off to prevent accidental scaling.",
+    )
     chart_config = {
         "displaylogo": False,
         "responsive": True,
-        "scrollZoom": False,
+        "scrollZoom": wheel_zoom,
         "doubleClick": "reset",
     }
     layout = {
@@ -371,8 +376,48 @@ with content:
         f"{chart_data['timestamp'].min():%d %b %Y %H:%M} to "
         f"{chart_data['timestamp'].max():%d %b %Y %H:%M} · {len(chart_data)} bars. "
         "Drag to zoom, double-click to reset, and hover for exact values. Mouse-wheel zoom is "
-        "disabled to prevent accidental chart collapse."
+        f"{'enabled' if wheel_zoom else 'disabled'} for this view."
     )
+    evidence_tab, indicators_tab, next_steps_tab = st.tabs(
+        ["Technical evidence", "Indicator values", "Continue research"]
+    )
+    with evidence_tab:
+        positives, risks = st.columns(2)
+        with positives:
+            st.subheader("Positive technical factors")
+            for factor in result["positive_factors"] or ["No positive factor confirmed"]:
+                st.success(factor)
+        with risks:
+            st.subheader("Technical risks")
+            for factor in result["negative_factors"] or ["No technical risk confirmed"]:
+                st.warning(factor)
+    with indicators_tab:
+        indicator_table = pd.DataFrame(
+            [
+                {"Indicator": key.upper(), "Value": value}
+                for key, value in result["indicators"].items()
+            ]
+        )
+        st.dataframe(indicator_table, use_container_width=True, hide_index=True)
+        st.caption(
+            "This page is intentionally limited to price and technical evidence. Fundamental, "
+            "news, signal, backtest and portfolio interpretation live in their dedicated pages."
+        )
+    with next_steps_tab:
+        first, second, third = st.columns(3)
+        with first:
+            st.page_link(
+                "pages/5_Fundamentals_Events.py",
+                label="Review fundamentals & events",
+                icon="📰",
+            )
+        with second:
+            st.page_link("pages/4_Signals.py", label="Inspect research signals", icon="🧭")
+        with third:
+            st.page_link("pages/6_Backtest_Lab.py", label="Validate in Backtest Lab", icon="🧪")
+    research_notice()
+    st.stop()
+
     research_tab, news_tab, earnings_tab, actions_tab = st.tabs(
         ["Fundamentals", "News", "Earnings", "Corporate actions"]
     )

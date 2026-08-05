@@ -11,6 +11,17 @@ if not signals:
     research_notice()
     st.stop()
 
+latest_only = st.toggle(
+    "Show latest signal per instrument",
+    value=True,
+    help="Disable to inspect the complete historical signal audit trail.",
+)
+if latest_only:
+    latest_by_symbol = {}
+    for item in signals:
+        latest_by_symbol.setdefault(item["symbol"], item)
+    signals = list(latest_by_symbol.values())
+
 summary = pd.DataFrame(signals)
 st.dataframe(
     summary[
@@ -52,15 +63,22 @@ component_fields = {
     "Portfolio suitability": "portfolio_score",
 }
 components = []
+available_weight = sum(
+    SCORE_WEIGHTS[name]
+    for name, field in component_fields.items()
+    if signal.get(field) is not None
+)
 for name, field in component_fields.items():
     score = signal.get(field)
     weight = SCORE_WEIGHTS[name]
+    effective_weight = weight / available_weight if score is not None and available_weight else None
     components.append(
         {
             "Component": name,
             "Score": score,
-            "Weight": f"{weight:.0%}",
-            "Contribution": round(score * weight, 1) if score is not None else None,
+            "Configured weight": f"{weight:.0%}",
+            "Effective weight": f"{effective_weight:.0%}" if effective_weight else None,
+            "Contribution": round(score * effective_weight, 1) if score is not None else None,
             "Interpretation": score_label(score),
         }
     )

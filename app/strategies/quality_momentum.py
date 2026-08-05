@@ -34,7 +34,8 @@ def generate_decision(
         (portfolio_score, 10),
     ]
     available = [(value, weight) for value, weight in components if value is not None]
-    score = round(sum(value * weight for value, weight in available) / sum(w for _, w in available))
+    available_weight = sum(weight for _, weight in available)
+    score = round(sum(value * weight for value, weight in available) / available_weight)
     recommendation = (
         "BUY"
         if score >= 75
@@ -50,8 +51,16 @@ def generate_decision(
     stop = latest_price - 2 * atr if atr else analysis.support_20
     target = latest_price + 3 * atr if atr else analysis.resistance_20
     volatility_pct = (atr / latest_price * 100) if atr and latest_price else 0
-    risk = min(100, round(30 + volatility_pct * 8 + len(analysis.negative_factors) * 8))
-    agreement = 100 - round(sum(abs(value - score) for value, _ in available) / len(available))
+    contextual_risk = (15 if portfolio_score is not None and portfolio_score < 40 else 0) + (
+        10 if market_regime_score is not None and market_regime_score < 40 else 0
+    )
+    risk = min(
+        100,
+        round(25 + volatility_pct * 6 + len(analysis.negative_factors) * 7 + contextual_risk),
+    )
+    agreement = 100 - round(
+        sum(abs(value - score) * weight for value, weight in available) / available_weight
+    )
     indicator_completeness = sum(
         value is not None
         for value in (
@@ -64,7 +73,14 @@ def generate_decision(
     )
     confidence = max(
         0,
-        min(100, round(agreement * 0.7 + indicator_completeness / 5 * 30)),
+        min(
+            100,
+            round(
+                agreement * 0.55
+                + indicator_completeness / 5 * 20
+                + available_weight / 100 * 25
+            ),
+        ),
     )
     explanation = (
         f"{recommendation.title()} - composite score {score}/100 from "

@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-from shared import configure_page, research_notice, safe_get, score_label
+from shared import configure_page, research_notice, safe_get
 
 
 def percentage_change(history: list[dict], close: float | None, period: int) -> float | None:
@@ -66,9 +66,7 @@ for instrument in selected["instruments"]:
             "Trend": analysis.get("trend", "Missing").title() if analysis else "Missing",
             "Technical": analysis.get("technical_score") if analysis else None,
             "Recommendation": signal.get("recommendation", "—"),
-            "Confidence": signal.get("confidence_score"),
-            "Risk": signal.get("risk_score"),
-            "Status": score_label(signal.get("confidence_score")),
+            "Signal generated": signal.get("generated_at", "Not generated"),
             "Latest timestamp": latest.get("timestamp", "Not available"),
         }
     )
@@ -84,8 +82,6 @@ st.dataframe(
         "1M %": st.column_config.NumberColumn(format="%.2f%%"),
         "3M %": st.column_config.NumberColumn(format="%.2f%%"),
         "Technical": st.column_config.ProgressColumn(min_value=0, max_value=100),
-        "Confidence": st.column_config.ProgressColumn(min_value=0, max_value=100),
-        "Risk": st.column_config.ProgressColumn(min_value=0, max_value=100),
     },
 )
 st.caption("Missing values are displayed explicitly and are never replaced with synthetic scores.")
