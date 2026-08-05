@@ -3,6 +3,16 @@ import streamlit as st
 
 from dashboard.shared import configure_page, research_notice, safe_get, score_label
 
+
+def percentage_change(history: list[dict], close: float | None, period: int) -> float | None:
+    if close is None or not history:
+        return None
+    starting_close = history[-min(period, len(history))]["close"]
+    if not starting_close:
+        return None
+    return (close / starting_close - 1) * 100
+
+
 configure_page("Watchlist", "👀")
 
 provider = st.selectbox("Stored analysis source", ["twelve_data", "mock"], index=0)
@@ -31,21 +41,15 @@ for instrument in selected["instruments"]:
     latest = history[-1] if history else {}
     close = latest.get("close")
 
-    def change(period: int):
-        if not close or not history:
-            return None
-        starting_close = history[-min(period, len(history))]["close"]
-        return (close / starting_close - 1) * 100
-
     rows.append(
         {
             "Symbol": symbol,
             "Company": instrument["name"],
             "Sector": instrument.get("sector") or "—",
             "Price": close,
-            "1W %": change(6),
-            "1M %": change(22),
-            "3M %": change(66),
+            "1W %": percentage_change(history, close, 6),
+            "1M %": percentage_change(history, close, 22),
+            "3M %": percentage_change(history, close, 66),
             "Trend": analysis.get("trend", "Missing").title() if analysis else "Missing",
             "Technical": analysis.get("technical_score") if analysis else None,
             "Recommendation": signal.get("recommendation", "—"),
