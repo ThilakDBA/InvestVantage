@@ -7,8 +7,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN addgroup --system investvantage \
-    && adduser --system --ingroup investvantage investvantage
-
+    && adduser --system \
+        --ingroup investvantage \
+        --home /home/investvantage \
+        --no-create-home \
+        investvantage \
+    && mkdir -p /home/investvantage/.streamlit \
+    && chown -R investvantage:investvantage /home/investvantage
+    
 COPY pyproject.toml ./
 COPY app ./app
 COPY config ./config
