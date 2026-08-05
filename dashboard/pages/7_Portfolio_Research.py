@@ -1,7 +1,6 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-
 from shared import API_BASE_URL, configure_page, research_notice, safe_get
 
 configure_page("Portfolio Research", "🧺")

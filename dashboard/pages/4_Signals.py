@@ -1,7 +1,6 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-
 from shared import SCORE_WEIGHTS, configure_page, research_notice, safe_get, score_label
 
 configure_page("Signals", "🧭")

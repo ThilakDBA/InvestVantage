@@ -1,5 +1,4 @@
 import streamlit as st
-
 from shared import configure_page, research_notice
 
 configure_page("InvestVantage")
