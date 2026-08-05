@@ -1,4 +1,5 @@
 import os
+from datetime import UTC, datetime
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -104,6 +105,21 @@ def configure_page(title: str, icon: str = "📈") -> None:
         st.divider()
         st.caption("MARKET INTELLIGENCE")
         st.caption("PAPER RESEARCH MODE · BROKER ORDERS OFF")
+        if st.button("Refresh data", key=f"refresh-data-{title}", use_container_width=True):
+            api_get.clear()
+            for state_key in (
+                "analysis_result",
+                "analysis_context",
+                "backtest_result",
+                "backtest_zero_cost",
+                "backtest_label",
+            ):
+                st.session_state.pop(state_key, None)
+            st.session_state["last_manual_refresh"] = datetime.now(UTC).isoformat()
+            st.rerun()
+        refreshed_at = st.session_state.get("last_manual_refresh")
+        if refreshed_at:
+            st.caption(f"Last manual refresh: {refreshed_at[:19].replace('T', ' ')} UTC")
     st.markdown(
         f"""
         <div class="iv-page-header">

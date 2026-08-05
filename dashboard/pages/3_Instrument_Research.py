@@ -6,7 +6,6 @@ import httpx
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from plotly.subplots import make_subplots
 from shared import configure_page, research_notice
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
@@ -264,93 +263,109 @@ with content:
     display_timezone = manual_timezone if range_mode == "Custom date & time" else "America/New_York"
     chart_data = chart_data.copy()
     chart_data["timestamp"] = chart_data["timestamp"].dt.tz_convert(display_timezone)
-    chart = make_subplots(
-        rows=4,
-        cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.04,
-        row_heights=[0.55, 0.18, 0.14, 0.13],
-    )
-    chart.add_trace(
-        go.Candlestick(
-            x=chart_data["timestamp"],
-            open=chart_data["open"],
-            high=chart_data["high"],
-            low=chart_data["low"],
-            close=chart_data["close"],
-            increasing_line_color="#14b8a6",
-            decreasing_line_color="#ef4444",
-            name="OHLC",
-        ),
-        row=1,
-        col=1,
-    )
-    chart.add_trace(
-        go.Scatter(x=chart_data["timestamp"], y=chart_data["sma_20"], name="SMA 20"),
-        row=1,
-        col=1,
-    )
-    chart.add_trace(
-        go.Scatter(x=chart_data["timestamp"], y=chart_data["sma_50"], name="SMA 50"),
-        row=1,
-        col=1,
-    )
-    chart.add_trace(
-        go.Bar(
-            x=chart_data["timestamp"],
-            y=chart_data["volume"].fillna(0),
-            marker_color="#64748b",
-            name="Volume",
-        ),
-        row=2,
-        col=1,
-    )
-    chart.add_trace(
-        go.Scatter(x=chart_data["timestamp"], y=chart_data["rsi_14"], name="RSI 14"),
-        row=3,
-        col=1,
-    )
-    chart.add_hline(y=70, line_dash="dot", line_color="#ef4444", row=3, col=1)
-    chart.add_hline(y=30, line_dash="dot", line_color="#14b8a6", row=3, col=1)
-    chart.add_trace(
-        go.Scatter(x=chart_data["timestamp"], y=chart_data["macd"], name="MACD"),
-        row=4,
-        col=1,
-    )
-    chart.add_trace(
-        go.Scatter(x=chart_data["timestamp"], y=chart_data["macd_signal"], name="MACD signal"),
-        row=4,
-        col=1,
-    )
-    chart.update_layout(
-        height=780,
-        autosize=True,
-        margin={"l": 10, "r": 10, "t": 20, "b": 10},
-        hovermode="x",
-        hoverdistance=80,
-        spikedistance=-1,
-        dragmode="zoom",
-        xaxis_rangeslider_visible=False,
-        legend={"orientation": "h", "y": 1.02, "x": 0},
-        uirevision=f"{symbol}-{provider}-{selected_interval}-{chart_window}",
-        transition={"duration": 0},
-    )
-    chart.update_xaxes(
-        range=[chart_data["timestamp"].min(), chart_data["timestamp"].max()],
-        showspikes=False,
-    )
-    chart.update_yaxes(fixedrange=False)
-    st.plotly_chart(
-        chart,
-        use_container_width=True,
-        key=f"research-chart-{symbol}-{provider}-{selected_interval}-{chart_window}",
-        config={
-            "displaylogo": False,
-            "responsive": True,
-            "scrollZoom": False,
-            "doubleClick": "reset",
-        },
-    )
+    chart_identity = f"{symbol}-{provider}-{selected_interval}-{chart_window}"
+    chart_config = {
+        "displaylogo": False,
+        "responsive": True,
+        "scrollZoom": False,
+        "doubleClick": "reset",
+    }
+    layout = {
+        "height": 560,
+        "autosize": True,
+        "margin": {"l": 10, "r": 10, "t": 32, "b": 10},
+        "hovermode": "x",
+        "hoverdistance": 80,
+        "dragmode": "zoom",
+        "uirevision": chart_identity,
+        "transition": {"duration": 0},
+    }
+    price_tab, volume_tab, rsi_tab, macd_tab = st.tabs(["Price", "Volume", "RSI", "MACD"])
+    with price_tab:
+        overlays = st.multiselect(
+            "Price overlays",
+            ["SMA 20", "SMA 50"],
+            default=["SMA 20"],
+            help="Keep overlays selective so the candlestick structure remains readable.",
+        )
+        price_chart = go.Figure(
+            go.Candlestick(
+                x=chart_data["timestamp"],
+                open=chart_data["open"],
+                high=chart_data["high"],
+                low=chart_data["low"],
+                close=chart_data["close"],
+                increasing_line_color="#14b8a6",
+                decreasing_line_color="#ef4444",
+                name="Price",
+            )
+        )
+        if "SMA 20" in overlays:
+            price_chart.add_trace(
+                go.Scatter(x=chart_data["timestamp"], y=chart_data["sma_20"], name="SMA 20")
+            )
+        if "SMA 50" in overlays:
+            price_chart.add_trace(
+                go.Scatter(x=chart_data["timestamp"], y=chart_data["sma_50"], name="SMA 50")
+            )
+        price_chart.update_layout(**layout, title="Price and selected trend overlays")
+        price_chart.update_xaxes(rangeslider_visible=False)
+        st.plotly_chart(
+            price_chart,
+            use_container_width=True,
+            key=f"price-{chart_identity}",
+            config=chart_config,
+        )
+    with volume_tab:
+        volume_chart = go.Figure(
+            go.Bar(
+                x=chart_data["timestamp"],
+                y=chart_data["volume"].fillna(0),
+                marker_color="#64748b",
+                name="Volume",
+            )
+        )
+        volume_chart.update_layout(**layout, title="Trading volume")
+        st.plotly_chart(
+            volume_chart,
+            use_container_width=True,
+            key=f"volume-{chart_identity}",
+            config=chart_config,
+        )
+    with rsi_tab:
+        rsi_chart = go.Figure(
+            go.Scatter(x=chart_data["timestamp"], y=chart_data["rsi_14"], name="RSI 14")
+        )
+        rsi_chart.add_hline(y=70, line_dash="dot", line_color="#ef4444")
+        rsi_chart.add_hline(y=30, line_dash="dot", line_color="#14b8a6")
+        rsi_chart.update_layout(**layout, title="Relative Strength Index (14)")
+        rsi_chart.update_yaxes(range=[0, 100])
+        st.plotly_chart(
+            rsi_chart,
+            use_container_width=True,
+            key=f"rsi-{chart_identity}",
+            config=chart_config,
+        )
+    with macd_tab:
+        macd_chart = go.Figure()
+        macd_chart.add_trace(
+            go.Scatter(x=chart_data["timestamp"], y=chart_data["macd"], name="MACD")
+        )
+        macd_chart.add_trace(
+            go.Scatter(
+                x=chart_data["timestamp"],
+                y=chart_data["macd_signal"],
+                name="Signal line",
+            )
+        )
+        macd_chart.add_hline(y=0, line_dash="dot", line_color="#64748b")
+        macd_chart.update_layout(**layout, title="MACD momentum")
+        st.plotly_chart(
+            macd_chart,
+            use_container_width=True,
+            key=f"macd-{chart_identity}",
+            config=chart_config,
+        )
     st.caption(
         f"{provider} · {selected_interval} OHLCV · {display_timezone} · "
         f"{chart_data['timestamp'].min():%d %b %Y %H:%M} to "
