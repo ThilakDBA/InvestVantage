@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from dashboard.shared import configure_page, research_notice, safe_get, score_label
+from shared import configure_page, research_notice, safe_get, score_label
 
 
 def percentage_change(history: list[dict], close: float | None, period: int) -> float | None:

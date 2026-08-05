@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from dashboard.shared import configure_page, research_notice, safe_get
+from shared import configure_page, research_notice, safe_get
 
 configure_page("Market Overview", "🌐")
 

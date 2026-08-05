@@ -1,10 +1,13 @@
 import os
+from html import escape
+from pathlib import Path
 from typing import Any
 
 import httpx
 import streamlit as st
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+LOGO_PATH = Path(__file__).parent / "assets" / "investvantage-logo-v4.png"
 
 SCORE_WEIGHTS = {
     "Technical": 0.40,
@@ -27,9 +30,117 @@ INDICATOR_HELP = {
 
 
 def configure_page(title: str, icon: str = "📈") -> None:
-    st.set_page_config(page_title=f"{title} · InvestVantage", page_icon=icon, layout="wide")
-    st.title(title)
-    st.caption("InvestVantage · Explainable research and paper-trading decision support")
+    st.set_page_config(
+        page_title=f"{title} · InvestVantage",
+        page_icon=icon,
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
+    st.markdown(
+        """
+        <style>
+        :root {
+            --iv-navy: #08111f;
+            --iv-panel: #111c2e;
+            --iv-border: rgba(148, 163, 184, 0.22);
+            --iv-cyan: #60a5fa;
+            --iv-blue: #2563eb;
+            --iv-text: #e5eaf1;
+            --iv-muted: #94a3b8;
+        }
+        .stApp {
+            background:
+                radial-gradient(circle at 82% 2%, rgba(37, 99, 235, 0.12), transparent 31rem),
+                linear-gradient(145deg, #07101c 0%, #0b1626 58%, #08111f 100%);
+        }
+        [data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #08111f 0%, #101b2d 100%);
+            border-right: 1px solid var(--iv-border);
+        }
+        [data-testid="stMetric"] {
+            background: linear-gradient(145deg, rgba(15, 36, 61, 0.96), rgba(9, 26, 46, 0.96));
+            border: 1px solid var(--iv-border);
+            border-radius: 14px;
+            padding: 1rem 1.1rem;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+        }
+        [data-testid="stMetricLabel"] { color: var(--iv-muted); }
+        [data-testid="stMetricValue"] { color: var(--iv-text); }
+        div[data-testid="stDataFrame"], div[data-testid="stPlotlyChart"] {
+            border: 1px solid var(--iv-border);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+        .iv-brand {
+            margin: -0.2rem 0 1rem;
+            text-align: center;
+        }
+        .iv-brand-tag { color: var(--iv-muted); font-size: 0.78rem; }
+        .iv-page-header {
+            padding: 1.25rem 1.4rem;
+            margin: 0 0 1.4rem;
+            border: 1px solid var(--iv-border);
+            border-radius: 16px;
+            background: linear-gradient(110deg, rgba(15, 42, 70, 0.96), rgba(10, 27, 48, 0.92));
+        }
+        .iv-page-kicker {
+            color: var(--iv-cyan);
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+        .iv-page-title {
+            color: var(--iv-text);
+            font-size: 2rem;
+            font-weight: 760;
+            margin: 0.2rem 0;
+        }
+        .iv-page-subtitle { color: var(--iv-muted); font-size: 0.95rem; }
+        .block-container { padding-top: 1.5rem; padding-bottom: 3rem; max-width: 1500px; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.sidebar:
+        st.image(str(LOGO_PATH), use_container_width=True)
+        st.markdown(
+            """
+            <div class="iv-brand">
+              <div>
+                <div class="iv-brand-tag">MARKET INTELLIGENCE</div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.page_link("Home.py", label="Home", icon="🏠")
+        st.page_link("pages/1_Market_Overview.py", label="Market Overview", icon="🌐")
+        st.page_link("pages/2_Watchlist.py", label="Watchlist", icon="👁️")
+        st.page_link("pages/3_Instrument_Research.py", label="Instrument Research", icon="📈")
+        st.page_link("pages/4_Signals.py", label="Signals", icon="🧭")
+        st.page_link(
+            "pages/5_Fundamentals_Events.py",
+            label="Fundamentals & Events",
+            icon="📰",
+        )
+        st.page_link("pages/6_Backtest_Lab.py", label="Backtest Lab", icon="🧪")
+        st.page_link("pages/7_Portfolio_Research.py", label="Portfolio Research", icon="💼")
+        st.page_link("pages/8_Data_Health.py", label="Data Health", icon="🩺")
+        st.divider()
+        st.caption("PAPER RESEARCH MODE · BROKER ORDERS OFF")
+    st.markdown(
+        f"""
+        <div class="iv-page-header">
+          <div class="iv-page-kicker">InvestVantage Research Workspace</div>
+          <div class="iv-page-title">{escape(title)}</div>
+          <div class="iv-page-subtitle">
+            Explainable market intelligence with visible evidence, risk and data provenance
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 @st.cache_data(ttl=30)
