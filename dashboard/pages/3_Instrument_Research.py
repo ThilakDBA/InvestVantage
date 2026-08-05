@@ -7,12 +7,11 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
+from shared import configure_page, research_notice
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
-st.set_page_config(page_title="InvestVantage", page_icon="📈", layout="wide")
-st.title("Instrument Research")
-st.caption("Explainable market intelligence · Research and paper trading only")
+configure_page("Instrument Research")
 
 
 @st.cache_data(ttl=30)
@@ -325,29 +324,39 @@ with content:
     )
     chart.update_layout(
         height=780,
+        autosize=True,
         margin={"l": 10, "r": 10, "t": 20, "b": 10},
-        hovermode="x unified",
+        hovermode="x",
+        hoverdistance=80,
+        spikedistance=-1,
+        dragmode="zoom",
         xaxis_rangeslider_visible=False,
         legend={"orientation": "h", "y": 1.02, "x": 0},
         uirevision=f"{symbol}-{provider}-{selected_interval}-{chart_window}",
+        transition={"duration": 0},
     )
     chart.update_xaxes(
         range=[chart_data["timestamp"].min(), chart_data["timestamp"].max()],
-        showspikes=True,
-        spikemode="across",
-        spikesnap="cursor",
+        showspikes=False,
     )
     chart.update_yaxes(fixedrange=False)
     st.plotly_chart(
         chart,
         use_container_width=True,
-        config={"displaylogo": False, "responsive": True, "scrollZoom": True},
+        key=f"research-chart-{symbol}-{provider}-{selected_interval}-{chart_window}",
+        config={
+            "displaylogo": False,
+            "responsive": True,
+            "scrollZoom": False,
+            "doubleClick": "reset",
+        },
     )
     st.caption(
         f"{provider} · {selected_interval} OHLCV · {display_timezone} · "
         f"{chart_data['timestamp'].min():%d %b %Y %H:%M} to "
         f"{chart_data['timestamp'].max():%d %b %Y %H:%M} · {len(chart_data)} bars. "
-        "Drag to zoom, double-click to reset, and hover for exact values."
+        "Drag to zoom, double-click to reset, and hover for exact values. Mouse-wheel zoom is "
+        "disabled to prevent accidental chart collapse."
     )
     research_tab, news_tab, earnings_tab, actions_tab = st.tabs(
         ["Fundamentals", "News", "Earnings", "Corporate actions"]
@@ -579,7 +588,4 @@ with content:
     else:
         st.info("Add paper holdings through the portfolio API to enable exposure guardrails.")
 
-st.divider()
-st.caption(
-    "Research only. Recommendations are not guaranteed and users remain responsible for decisions."
-)
+research_notice()

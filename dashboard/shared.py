@@ -7,7 +7,9 @@ import httpx
 import streamlit as st
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
-LOGO_PATH = Path(__file__).parent / "assets" / "investvantage-logo-v4.png"
+ASSET_PATH = Path(__file__).parent / "assets"
+LOGO_PATH = ASSET_PATH / "investvantage-logo-header.png"
+LOGO_MARK_PATH = ASSET_PATH / "investvantage-mark.png"
 
 SCORE_WEIGHTS = {
     "Technical": 0.40,
@@ -71,11 +73,6 @@ def configure_page(title: str, icon: str = "📈") -> None:
             border-radius: 14px;
             overflow: hidden;
         }
-        .iv-brand {
-            margin: -0.2rem 0 1rem;
-            text-align: center;
-        }
-        .iv-brand-tag { color: var(--iv-muted); font-size: 0.78rem; }
         .iv-page-header {
             padding: 1.25rem 1.4rem;
             margin: 0 0 1.4rem;
@@ -102,32 +99,10 @@ def configure_page(title: str, icon: str = "📈") -> None:
         """,
         unsafe_allow_html=True,
     )
+    st.logo(str(LOGO_PATH), icon_image=str(LOGO_MARK_PATH))
     with st.sidebar:
-        st.image(str(LOGO_PATH), use_container_width=True)
-        st.markdown(
-            """
-            <div class="iv-brand">
-              <div>
-                <div class="iv-brand-tag">MARKET INTELLIGENCE</div>
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.page_link("Home.py", label="Home", icon="🏠")
-        st.page_link("pages/1_Market_Overview.py", label="Market Overview", icon="🌐")
-        st.page_link("pages/2_Watchlist.py", label="Watchlist", icon="👁️")
-        st.page_link("pages/3_Instrument_Research.py", label="Instrument Research", icon="📈")
-        st.page_link("pages/4_Signals.py", label="Signals", icon="🧭")
-        st.page_link(
-            "pages/5_Fundamentals_Events.py",
-            label="Fundamentals & Events",
-            icon="📰",
-        )
-        st.page_link("pages/6_Backtest_Lab.py", label="Backtest Lab", icon="🧪")
-        st.page_link("pages/7_Portfolio_Research.py", label="Portfolio Research", icon="💼")
-        st.page_link("pages/8_Data_Health.py", label="Data Health", icon="🩺")
         st.divider()
+        st.caption("MARKET INTELLIGENCE")
         st.caption("PAPER RESEARCH MODE · BROKER ORDERS OFF")
     st.markdown(
         f"""

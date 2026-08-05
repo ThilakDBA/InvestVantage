@@ -14,7 +14,12 @@ def percentage_change(history: list[dict], close: float | None, period: int) -> 
 
 configure_page("Watchlist", "👀")
 
-provider = st.selectbox("Stored analysis source", ["twelve_data", "mock"], index=0)
+provider = st.selectbox("Market-data source", ["twelve_data", "finnhub", "mock"], index=0)
+if provider == "finnhub":
+    st.info(
+        "Finnhub quote mode shows the latest available price. Trend and performance scores "
+        "require historical Twelve Data bars."
+    )
 watchlists = safe_get("/api/v1/watchlists", default=[])
 signals = safe_get("/api/v1/signals", default=[])
 latest_signals = {}
@@ -30,12 +35,21 @@ selected = st.selectbox("Watchlist", watchlists, format_func=lambda item: item["
 rows = []
 for instrument in selected["instruments"]:
     symbol = instrument["symbol"]
-    analysis = safe_get(
-        f"/api/v1/analysis/{symbol}/technical",
-        {"provider": provider, "refresh": "false", "limit": 260, "interval": "1day"},
-        {},
-    )
-    history = analysis.get("price_history", []) if analysis else []
+    if provider == "finnhub":
+        market = safe_get(
+            f"/api/v1/market/{symbol}",
+            {"provider": provider, "limit": 2},
+            {},
+        )
+        analysis = {}
+        history = market.get("bars", []) if market else []
+    else:
+        analysis = safe_get(
+            f"/api/v1/analysis/{symbol}/technical",
+            {"provider": provider, "refresh": "false", "limit": 260, "interval": "1day"},
+            {},
+        )
+        history = analysis.get("price_history", []) if analysis else []
     signal = latest_signals.get(symbol, {})
     latest = history[-1] if history else {}
     close = latest.get("close")
