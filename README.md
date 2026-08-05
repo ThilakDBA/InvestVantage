@@ -162,13 +162,78 @@ GET /api/v1/analysis/{symbol}/technical
 
 The Streamlit research dashboard runs as a separate Compose service on port
 `8501`. In Codespaces, open the private forwarded port named
-**InvestVantage Dashboard**. It provides instrument and provider controls, price
-history, technical metrics, scoring factors and risk factors. It does not place
-trades.
+**InvestVantage Dashboard**. Its multipage workspace includes Market Overview,
+Watchlist, Instrument Research, Signals, Fundamentals & Events, Backtest Lab,
+Portfolio Research, and Data Health. It does not place trades.
 
 ```bash
 make dashboard
 ```
 
-The next milestone will introduce the configurable Quality Momentum strategy
-and persisted Buy, Hold, Watch, Reduce and Avoid signals.
+Use `GET /api/v1/system/data-health` to inspect configured providers, stored bar
+counts and intervals, latest market timestamps, research-data coverage, and the
+broker-order safety state. Provider configuration is reported without exposing
+secret values.
+
+Milestone 4 adds the deterministic Quality Momentum Swing strategy and persists
+explainable `BUY`, `WATCH`, `HOLD`, `REDUCE`, and `AVOID` research signals.
+
+```text
+POST /api/v1/signals/generate
+GET  /api/v1/signals
+GET  /api/v1/signals/latest/{symbol}
+```
+
+Signals include confidence, risk, entry, stop and target references, positive
+and negative factors, invalidation conditions and data completeness. They are
+research outputs only; broker order submission remains disabled.
+
+## Real research-data ingestion
+
+Keep `FINNHUB_API_KEY` and `TWELVE_DATA_API_KEY` in Codespaces secrets or a local ignored
+`.env` file. Never commit their values. After the database and migrations are running:
+
+```bash
+docker compose --profile ingestion run --rm seed-real
+docker compose up --build -d api dashboard
+```
+
+The job stores up to 500 real daily Twelve Data OHLCV bars and, for stocks, Finnhub
+fundamental metrics, recent company news and earnings-calendar events. Price bars are rejected
+when timestamps are unordered, duplicated, stale, in the future, or contain invalid OHLCV
+values. Provider and retrieval times remain visible through the API.
+
+```text
+GET  /api/v1/research/{symbol}
+GET  /api/v1/research/{symbol}?refresh=true
+POST /api/v1/signals/outcomes/evaluate?horizon_days=20
+GET  /api/v1/signals/outcomes
+GET  /api/v1/signals/backtest/{symbol}?provider=twelve_data&horizon_days=20
+```
+
+Quality Momentum now combines technical (40%), fundamental (20%), news (10%), market-regime
+(10%), sector-relative strength (10%) and portfolio suitability (10%) scores. Missing provider
+data remains `null` and lowers `data_completeness`; it is never silently replaced with mock
+data. News scoring is a deterministic headline-cue baseline and requires human review.
+
+### Backtest integrity controls
+
+The backtest laboratory models configurable position value, commission per order, regulatory
+fees, entry/exit slippage and cash dividends. Daily Twelve Data prices are split-adjusted;
+dividend and split-event ingestion is attempted separately and is shown as unavailable when the
+configured provider plan does not include those premium endpoints. The dashboard reports net
+returns, modeled fees, drawdown, equity curve, trade detail and all active assumptions.
+
+The current universe is today's configured watchlist, so results retain survivorship bias. A
+future point-in-time universe dataset is required to remove that limitation. Historical
+fundamentals are also excluded until filing-date-aware snapshots are available. Broker execution
+remains disabled; backtest settings cannot submit an order.
+
+### Intraday chart windows
+
+The dashboard supports preset `15D`, `7D`, `3D`, `1D`, `12H`, `8H`, `4H`, `2H`, and `1H`
+windows, plus manual start/end date and time selection in New York, UTC, or India time. Presets
+automatically choose a practical Twelve Data candle interval from `1min` through `1day`.
+Price-history uniqueness includes the interval, so intraday bars cannot overwrite daily bars.
+Strategy signals and backtests continue to use `1day` bars even while an intraday chart is open.
+Intraday availability and lookback depth depend on the configured provider subscription.

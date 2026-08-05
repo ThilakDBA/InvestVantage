@@ -1,97 +1,44 @@
-import os
-
-import httpx
-import pandas as pd
 import streamlit as st
 
-API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+from dashboard.shared import configure_page, research_notice
 
-st.set_page_config(page_title="InvestVantage", page_icon="📈", layout="wide")
-st.title("InvestVantage Research")
-st.caption("Explainable market intelligence · Research and paper trading only")
+configure_page("InvestVantage")
 
+st.title("InvestVantage")
+st.caption("Explainable market intelligence for research and paper trading")
 
-@st.cache_data(ttl=30)
-def instruments() -> list[dict]:
-    response = httpx.get(f"{API_BASE_URL}/api/v1/instruments", timeout=10)
-    response.raise_for_status()
-    return response.json()
+st.info(
+    "Use the pages in the sidebar to move from market context to instrument research, "
+    "signals, backtesting, portfolio research, and data-quality checks."
+)
 
+left, middle, right = st.columns(3)
 
-try:
-    catalogue = instruments()
-except httpx.HTTPError as exc:
-    st.error(f"API unavailable: {exc}")
-    st.stop()
+with left:
+    st.subheader("Discover")
+    st.page_link("pages/1_Market_Overview.py", label="Market Overview", icon="🌐")
+    st.page_link("pages/2_Watchlist.py", label="Watchlist", icon="👀")
+    st.page_link("pages/3_Instrument_Research.py", label="Instrument Research", icon="📈")
 
-if not catalogue:
-    st.warning("No instruments are loaded. Run the watchlist seed service.")
-    st.stop()
+with middle:
+    st.subheader("Evaluate")
+    st.page_link("pages/4_Signals.py", label="Signals", icon="🧭")
+    st.page_link("pages/5_Fundamentals_Events.py", label="Fundamentals & Events", icon="🗞️")
+    st.page_link("pages/6_Backtest_Lab.py", label="Backtest Lab", icon="🧪")
 
-controls, content = st.columns([1, 3])
-with controls:
-    st.subheader("Analysis controls")
-    symbol = st.selectbox("Instrument", [item["symbol"] for item in catalogue])
-    provider = st.selectbox("Market data", ["mock", "twelve_data", "finnhub"])
-    requested_points = st.slider("Price bars", 35, 250, 100)
-    analyse = st.button("Analyse", type="primary", use_container_width=True)
-    st.info(
-        "Mock data is deterministic. Finnhub provides one quote and is not suitable "
-        "for indicators yet."
-    )
-
-with content:
-    if not analyse:
-        st.subheader("Select an instrument and run technical analysis")
-        st.write("The dashboard will show trend, momentum, volatility, volume and scoring factors.")
-        st.stop()
-    try:
-        response = httpx.get(
-            f"{API_BASE_URL}/api/v1/analysis/{symbol}/technical",
-            params={"provider": provider, "refresh": "true", "limit": requested_points},
-            timeout=30,
-        )
-        response.raise_for_status()
-        result = response.json()
-    except httpx.HTTPStatusError as exc:
-        detail = exc.response.json().get("detail", "Analysis request failed")
-        st.error(detail)
-        st.stop()
-    except httpx.HTTPError as exc:
-        st.error(f"API request failed: {exc}")
-        st.stop()
-
-    score, trend, price, rsi = st.columns(4)
-    history = pd.DataFrame(result["price_history"])
-    latest_close = history.iloc[-1]["close"]
-    score.metric("Technical score", f'{result["technical_score"]}/100')
-    trend.metric("Trend", result["trend"].title())
-    price.metric("Latest close", f"${latest_close:,.2f}")
-    rsi_value = result["indicators"]["rsi_14"]
-    rsi.metric("RSI (14)", f"{rsi_value:.1f}" if rsi_value is not None else "N/A")
-
-    st.subheader(f"{symbol} price history")
-    history["timestamp"] = pd.to_datetime(history["timestamp"])
-    st.line_chart(history.set_index("timestamp")["close"], height=360)
-
-    positives, negatives = st.columns(2)
-    with positives:
-        st.subheader("Positive factors")
-        for factor in result["positive_factors"] or ["No positive factor confirmed"]:
-            st.success(factor)
-    with negatives:
-        st.subheader("Risk factors")
-        for factor in result["negative_factors"] or ["No negative factor confirmed"]:
-            st.warning(factor)
-
-    st.subheader("Indicators")
-    indicator_table = pd.DataFrame(
-        [{"Indicator": key.upper(), "Value": value} for key, value in result["indicators"].items()]
-    )
-    st.dataframe(indicator_table, use_container_width=True, hide_index=True)
+with right:
+    st.subheader("Control")
+    st.page_link("pages/7_Portfolio_Research.py", label="Portfolio Research", icon="💼")
+    st.page_link("pages/8_Data_Health.py", label="Data Health", icon="🩺")
 
 st.divider()
-st.caption(
-    "Research only. Recommendations are not guaranteed and users remain responsible "
-    "for decisions."
+st.subheader("Research workflow")
+st.markdown(
+    "1. Check the market regime and provider freshness.  "
+    "\n2. Rank the watchlist and open an instrument.  "
+    "\n3. Review technical, fundamental, news, and event evidence.  "
+    "\n4. Inspect the signal breakdown and invalidation conditions.  "
+    "\n5. Validate assumptions in the Backtest Lab before paper trading."
 )
+
+research_notice()

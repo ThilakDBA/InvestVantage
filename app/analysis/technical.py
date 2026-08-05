@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from math import isclose
 from statistics import fmean
 
 from app.providers.base import MarketBar
@@ -40,7 +41,7 @@ def _ema_series(values: list[float], period: int) -> list[float]:
 def _rsi(values: list[float], period: int = 14) -> float | None:
     if len(values) <= period:
         return None
-    changes = [current - previous for previous, current in zip(values, values[1:])]
+    changes = [current - previous for previous, current in zip(values, values[1:], strict=False)]
     gains = [max(change, 0) for change in changes[-period:]]
     losses = [max(-change, 0) for change in changes[-period:]]
     average_gain = fmean(gains)
@@ -54,7 +55,7 @@ def _atr(bars: list[MarketBar], period: int = 14) -> float | None:
     if len(bars) <= period:
         return None
     ranges = []
-    for previous, current in zip(bars, bars[1:]):
+    for previous, current in zip(bars, bars[1:], strict=False):
         ranges.append(
             max(
                 current.high - current.low,
@@ -90,9 +91,7 @@ def analyse_bars(bars: list[MarketBar]) -> TechnicalAnalysis:
     rsi_14 = _rsi(closes)
     atr_14 = _atr(ordered)
     volume_average = fmean(volumes[-20:]) if len(volumes) >= 20 else None
-    volume_ratio = (
-        volumes[-1] / volume_average if volume_average and volumes else None
-    )
+    volume_ratio = volumes[-1] / volume_average if volume_average and volumes else None
     recent = ordered[-20:]
     support = min(bar.low for bar in recent) if len(recent) >= 20 else None
     resistance = max(bar.high for bar in recent) if len(recent) >= 20 else None
@@ -126,12 +125,14 @@ def analyse_bars(bars: list[MarketBar]) -> TechnicalAnalysis:
             score -= 8
             negative.append("RSI indicates weak momentum")
     if macd is not None and macd_signal is not None:
-        if macd > macd_signal:
-            score += 10
-            positive.append("MACD is above its signal line")
-        else:
-            score -= 10
-            negative.append("MACD is below its signal line")
+        if not isclose(macd, macd_signal, rel_tol=1e-9, abs_tol=1e-9):
+            if macd > macd_signal:
+                score += 10
+                positive.append("MACD is above its signal line")
+            else:
+                score -= 10
+                negative.append("MACD is below its signal line")
+
     if volume_ratio is not None:
         if volume_ratio >= 1.1:
             score += 6

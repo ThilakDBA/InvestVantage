@@ -1,4 +1,4 @@
-.PHONY: setup test lint format api dashboard compose-up compose-down migrate load-watchlist
+.PHONY: setup test lint format api dashboard compose-up compose-down migrate load-watchlist seed-real
 
 setup:
 	python -m pip install --upgrade pip
@@ -32,3 +32,6 @@ migrate:
 
 load-watchlist:
 	docker compose run --rm seed
+
+seed-real:
+	python -m app.scripts.seed_real_data

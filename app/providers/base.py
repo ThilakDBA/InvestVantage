@@ -33,3 +33,15 @@ class MarketDataProvider(ABC):
     @abstractmethod
     async def fetch_bars(self, symbol: str, limit: int = 100) -> list[MarketBar]:
         """Return normalized bars ordered from oldest to newest."""
+
+    async def fetch_bars_interval(
+        self,
+        symbol: str,
+        limit: int = 100,
+        interval: str = "1day",
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+    ) -> list[MarketBar]:
+        if interval != "1day":
+            raise MarketDataError(f"{self.name} does not support interval {interval}")
+        return await self.fetch_bars(symbol, limit)

@@ -8,6 +8,11 @@ instruments:
     exchange: NASDAQ
     name: Invesco QQQ Trust
     asset_type: ETF
+  - symbol: XLK
+    exchange: NYSEARCA
+    name: Technology Select Sector SPDR Fund
+    asset_type: ETF
+    sector: Technology
   - symbol: AAPL
     exchange: NASDAQ
     name: Apple Inc.

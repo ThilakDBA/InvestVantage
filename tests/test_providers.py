@@ -53,6 +53,32 @@ async def test_twelve_data_history_is_normalized_to_utc() -> None:
 
 
 @pytest.mark.asyncio
+async def test_twelve_data_intraday_interval_is_preserved() -> None:
+    provider = TwelveDataMarketDataProvider(
+        "secret",
+        FakeClient(
+            {
+                "meta": {"exchange_timezone": "America/New_York"},
+                "values": [
+                    {
+                        "datetime": "2026-01-02 09:35:00",
+                        "open": "100",
+                        "high": "102",
+                        "low": "99",
+                        "close": "101",
+                        "volume": "1000",
+                    }
+                ],
+                "status": "ok",
+            }
+        ),
+    )
+    bars = await provider.fetch_bars_interval("AAPL", interval="5min")
+    assert bars[0].interval == "5min"
+    assert bars[0].timestamp.hour == 9
+
+
+@pytest.mark.asyncio
 async def test_twelve_data_error_does_not_expose_key() -> None:
     provider = TwelveDataMarketDataProvider(
         "do-not-leak", FakeClient({"status": "error", "message": "Invalid symbol"})

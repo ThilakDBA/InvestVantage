@@ -1,4 +1,6 @@
 from dataclasses import asdict
+from datetime import datetime
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from sqlalchemy import select
@@ -17,16 +19,29 @@ from app.services.market_data import fetch_and_store
 router = APIRouter(prefix="/api/v1/analysis", tags=["technical analysis"])
 
 
-def _stored_bars(request: Request, instrument_id: int, provider: str) -> list[MarketBar]:
+def _stored_bars(
+    request: Request,
+    instrument_id: int,
+    provider: str,
+    interval: str,
+    start_at=None,
+    end_at=None,
+) -> list[MarketBar]:
     with request.app.state.database.session_factory() as session:
-        rows = session.scalars(
+        statement = (
             select(PriceHistory)
             .where(
                 PriceHistory.instrument_id == instrument_id,
                 PriceHistory.data_source == provider,
+                PriceHistory.interval == interval,
             )
             .order_by(PriceHistory.timestamp)
         )
+        if start_at:
+            statement = statement.where(PriceHistory.timestamp >= start_at)
+        if end_at:
+            statement = statement.where(PriceHistory.timestamp <= end_at)
+        rows = session.scalars(statement)
         return [
             MarketBar(
                 timestamp=row.timestamp,
@@ -49,6 +64,9 @@ async def technical_analysis(
     provider: str | None = Query(default=None),
     refresh: bool = Query(default=True),
     limit: int = Query(default=100, ge=35, le=5000),
+    interval: str = Query(default="1day"),
+    start_at: Annotated[datetime | None, Query()] = None,
+    end_at: Annotated[datetime | None, Query()] = None,
 ) -> TechnicalAnalysisResponse:
     with request.app.state.database.session_factory() as session:
         instrument = session.scalar(select(Instrument).where(Instrument.symbol == symbol.upper()))
@@ -57,12 +75,20 @@ async def technical_analysis(
         provider_instance = create_market_data_provider(request.app.state.settings, provider)
         if refresh:
             try:
-                await fetch_and_store(session, provider_instance, instrument, limit)
+                await fetch_and_store(
+                    session,
+                    provider_instance,
+                    instrument,
+                    limit,
+                    interval,
+                    start_at,
+                    end_at,
+                )
             except MarketDataError as exc:
                 raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
         instrument_id = instrument.id
 
-    bars = _stored_bars(request, instrument_id, provider_instance.name)
+    bars = _stored_bars(request, instrument_id, provider_instance.name, interval, start_at, end_at)
     if len(bars) < 35:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -77,6 +103,7 @@ async def technical_analysis(
     return TechnicalAnalysisResponse(
         symbol=symbol.upper(),
         provider=provider_instance.name,
+        interval=interval,
         trend=trend,
         technical_score=score,
         data_points=len(bars),
@@ -84,7 +111,15 @@ async def technical_analysis(
         positive_factors=positive,
         negative_factors=negative,
         price_history=[
-            PricePoint(timestamp=bar.timestamp, close=bar.close, volume=bar.volume)
-            for bar in bars[-200:]
+            PricePoint(
+                timestamp=bar.timestamp,
+                open=bar.open,
+                high=bar.high,
+                low=bar.low,
+                close=bar.close,
+                volume=bar.volume,
+                interval=bar.interval,
+            )
+            for bar in bars[-2000:]
         ],
     )
