@@ -262,9 +262,7 @@ with content:
     if chart_data.empty:
         st.warning("No bars exist inside the selected date/time range.")
         st.stop()
-    display_timezone = (
-        manual_timezone if range_mode == "Custom date & time" else "America/New_York"
-    )
+    display_timezone = manual_timezone if range_mode == "Custom date & time" else "America/New_York"
     chart_data = chart_data.copy()
     chart_data["timestamp"] = chart_data["timestamp"].dt.tz_convert(display_timezone)
     chart = make_subplots(

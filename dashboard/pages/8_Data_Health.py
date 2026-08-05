@@ -27,9 +27,7 @@ if not providers.empty:
 st.subheader("Stored price history")
 prices = pd.DataFrame(inventory.get("price_inventory", []))
 if not prices.empty:
-    prices["latest_market_timestamp"] = pd.to_datetime(
-        prices["latest_market_timestamp"], utc=True
-    )
+    prices["latest_market_timestamp"] = pd.to_datetime(prices["latest_market_timestamp"], utc=True)
     prices["age_hours"] = prices["latest_market_timestamp"].apply(
         lambda value: round((datetime.now(UTC) - value.to_pydatetime()).total_seconds() / 3600, 1)
     )
