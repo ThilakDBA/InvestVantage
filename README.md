@@ -162,13 +162,18 @@ GET /api/v1/analysis/{symbol}/technical
 
 The Streamlit research dashboard runs as a separate Compose service on port
 `8501`. In Codespaces, open the private forwarded port named
-**InvestVantage Dashboard**. It provides instrument and provider controls, price
-history, technical metrics, scoring factors and risk factors. It does not place
-trades.
+**InvestVantage Dashboard**. Its multipage workspace includes Market Overview,
+Watchlist, Instrument Research, Signals, Fundamentals & Events, Backtest Lab,
+Portfolio Research, and Data Health. It does not place trades.
 
 ```bash
 make dashboard
 ```
+
+Use `GET /api/v1/system/data-health` to inspect configured providers, stored bar
+counts and intervals, latest market timestamps, research-data coverage, and the
+broker-order safety state. Provider configuration is reported without exposing
+secret values.
 
 Milestone 4 adds the deterministic Quality Momentum Swing strategy and persists
 explainable `BUY`, `WATCH`, `HOLD`, `REDUCE`, and `AVOID` research signals.
