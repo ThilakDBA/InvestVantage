@@ -13,6 +13,7 @@ COPY pyproject.toml ./
 COPY app ./app
 COPY config ./config
 COPY dashboard ./dashboard
+COPY .streamlit ./.streamlit
 COPY alembic.ini ./
 COPY migrations ./migrations
 

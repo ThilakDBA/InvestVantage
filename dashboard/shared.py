@@ -1,11 +1,13 @@
 import os
 from html import escape
+from pathlib import Path
 from typing import Any
 
 import httpx
 import streamlit as st
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+LOGO_PATH = Path(__file__).parent / "assets" / "investvantage-logo-v4.png"
 
 SCORE_WEIGHTS = {
     "Technical": 0.40,
@@ -38,21 +40,21 @@ def configure_page(title: str, icon: str = "📈") -> None:
         """
         <style>
         :root {
-            --iv-navy: #071426;
-            --iv-panel: #0d2038;
+            --iv-navy: #08111f;
+            --iv-panel: #111c2e;
             --iv-border: rgba(148, 163, 184, 0.22);
-            --iv-cyan: #22d3ee;
-            --iv-blue: #3b82f6;
-            --iv-text: #e6edf7;
+            --iv-cyan: #60a5fa;
+            --iv-blue: #2563eb;
+            --iv-text: #e5eaf1;
             --iv-muted: #94a3b8;
         }
         .stApp {
             background:
-                radial-gradient(circle at 82% 2%, rgba(37, 99, 235, 0.16), transparent 31rem),
-                linear-gradient(145deg, #06101f 0%, #091829 58%, #071321 100%);
+                radial-gradient(circle at 82% 2%, rgba(37, 99, 235, 0.12), transparent 31rem),
+                linear-gradient(145deg, #07101c 0%, #0b1626 58%, #08111f 100%);
         }
         [data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #071426 0%, #0a1b30 100%);
+            background: linear-gradient(180deg, #08111f 0%, #101b2d 100%);
             border-right: 1px solid var(--iv-border);
         }
         [data-testid="stMetric"] {
@@ -70,24 +72,9 @@ def configure_page(title: str, icon: str = "📈") -> None:
             overflow: hidden;
         }
         .iv-brand {
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-            margin: 0.2rem 0 1.1rem;
+            margin: -0.2rem 0 1rem;
+            text-align: center;
         }
-        .iv-logo {
-            display: grid;
-            place-items: center;
-            width: 42px;
-            height: 42px;
-            border-radius: 12px;
-            color: #04111f;
-            font-weight: 900;
-            letter-spacing: -0.08em;
-            background: linear-gradient(135deg, var(--iv-cyan), var(--iv-blue));
-            box-shadow: 0 8px 24px rgba(34, 211, 238, 0.22);
-        }
-        .iv-brand-name { color: var(--iv-text); font-size: 1.3rem; font-weight: 750; }
         .iv-brand-tag { color: var(--iv-muted); font-size: 0.78rem; }
         .iv-page-header {
             padding: 1.25rem 1.4rem;
@@ -116,12 +103,11 @@ def configure_page(title: str, icon: str = "📈") -> None:
         unsafe_allow_html=True,
     )
     with st.sidebar:
+        st.image(str(LOGO_PATH), use_container_width=True)
         st.markdown(
             """
             <div class="iv-brand">
-              <div class="iv-logo">IV</div>
               <div>
-                <div class="iv-brand-name">InvestVantage</div>
                 <div class="iv-brand-tag">MARKET INTELLIGENCE</div>
               </div>
             </div>
