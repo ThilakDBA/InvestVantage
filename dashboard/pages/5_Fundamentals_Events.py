@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from dashboard.shared import configure_page, research_notice, safe_get, source_caption
+from shared import configure_page, research_notice, safe_get, source_caption
 
 configure_page("Fundamentals & Events", "📰")
 

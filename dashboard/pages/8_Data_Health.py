@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 import pandas as pd
 import streamlit as st
 
-from dashboard.shared import configure_page, research_notice, safe_get
+from shared import configure_page, research_notice, safe_get
 
 configure_page("Data Health", "🩺")
 

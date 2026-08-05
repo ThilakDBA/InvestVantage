@@ -1,11 +1,8 @@
 import streamlit as st
 
-from dashboard.shared import configure_page, research_notice
+from shared import configure_page, research_notice
 
 configure_page("InvestVantage")
-
-st.title("InvestVantage")
-st.caption("Explainable market intelligence for research and paper trading")
 
 st.info(
     "Use the pages in the sidebar to move from market context to instrument research, "
