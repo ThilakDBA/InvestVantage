@@ -75,11 +75,7 @@ def generate_decision(
         0,
         min(
             100,
-            round(
-                agreement * 0.55
-                + indicator_completeness / 5 * 20
-                + available_weight / 100 * 25
-            ),
+            round(agreement * 0.55 + indicator_completeness / 5 * 20 + available_weight / 100 * 25),
         ),
     )
     explanation = (

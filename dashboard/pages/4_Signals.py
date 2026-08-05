@@ -64,9 +64,7 @@ component_fields = {
 }
 components = []
 available_weight = sum(
-    SCORE_WEIGHTS[name]
-    for name, field in component_fields.items()
-    if signal.get(field) is not None
+    SCORE_WEIGHTS[name] for name, field in component_fields.items() if signal.get(field) is not None
 )
 for name, field in component_fields.items():
     score = signal.get(field)

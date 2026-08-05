@@ -32,9 +32,7 @@ if run:
         "regulatory_fee_bps": regulatory_fee,
         "slippage_bps": slippage,
     }
-    st.session_state["backtest_result"] = safe_get(
-        f"/api/v1/signals/backtest/{symbol}", params, {}
-    )
+    st.session_state["backtest_result"] = safe_get(f"/api/v1/signals/backtest/{symbol}", params, {})
     st.session_state["backtest_zero_cost"] = safe_get(
         f"/api/v1/signals/backtest/{symbol}",
         {
@@ -69,9 +67,7 @@ if result:
             equity_frame["date"] = pd.to_datetime(equity_frame["date"])
             equity_frame = equity_frame.sort_values("date")
             equity_frame["peak"] = equity_frame["equity"].cummax()
-            equity_frame["drawdown"] = (
-                equity_frame["equity"] / equity_frame["peak"] - 1
-            ) * 100
+            equity_frame["drawdown"] = (equity_frame["equity"] / equity_frame["peak"] - 1) * 100
             st.plotly_chart(
                 px.line(
                     equity_frame,
