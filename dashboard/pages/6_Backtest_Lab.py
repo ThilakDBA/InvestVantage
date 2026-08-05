@@ -1,7 +1,6 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-
 from shared import configure_page, research_notice, safe_get
 
 configure_page("Backtest Lab", "🧪")
