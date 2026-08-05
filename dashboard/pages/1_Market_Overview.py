@@ -42,9 +42,16 @@ if cards:
             f"{item['1D']:+.2f}% today" if item["1D"] is not None else None,
             help=f"Latest provider timestamp: {item['timestamp']}",
         )
-    performance = pd.DataFrame(cards).melt(
-        id_vars=["symbol"], value_vars=["1D", "1W", "1M"], var_name="Period", value_name="Return"
-    ).dropna(subset=["Return"])
+    performance = (
+        pd.DataFrame(cards)
+        .melt(
+            id_vars=["symbol"],
+            value_vars=["1D", "1W", "1M"],
+            var_name="Period",
+            value_name="Return",
+        )
+        .dropna(subset=["Return"])
+    )
     if not performance.empty:
         st.plotly_chart(
             px.bar(
