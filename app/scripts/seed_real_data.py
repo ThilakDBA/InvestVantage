@@ -4,6 +4,7 @@ import logging
 from sqlalchemy import select
 
 from app.core.config import get_settings
+from app.core.logging import configure_logging
 from app.database.models import Instrument, ResearchSnapshot
 from app.database.session import Database
 from app.providers import create_market_data_provider
@@ -81,5 +82,5 @@ async def seed() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    configure_logging(get_settings().log_level)
     asyncio.run(seed())
