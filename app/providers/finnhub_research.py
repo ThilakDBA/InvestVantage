@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime, timedelta
+from math import exp
 
 from app.providers.base import MarketDataConfigurationError, MarketDataError
 from app.providers.http import ResilientJsonClient
@@ -63,44 +64,52 @@ def fundamental_score(metrics: dict) -> tuple[int, list[str], list[str]]:
     negatives: list[str] = []
     score = 50
     checks = [
-        ("roeTTM", 10, "Positive return on equity", "Weak return on equity"),
-        ("netProfitMarginTTM", 5, "Healthy profit margin", "Thin profit margin"),
-        ("revenueGrowthTTMYoy", 0, "Revenue is growing", "Revenue growth is negative"),
-        ("epsGrowthTTMYoy", 0, "EPS is growing", "EPS growth is negative"),
+        ("roeTTM", 10, 0.6, 12, "Positive return on equity", "Weak return on equity"),
+        ("netProfitMarginTTM", 5, 0.5, 10, "Healthy profit margin", "Thin profit margin"),
+        ("revenueGrowthTTMYoy", 0, 0.5, 10, "Revenue is growing", "Revenue growth is negative"),
+        ("epsGrowthTTMYoy", 0, 0.4, 10, "EPS is growing", "EPS growth is negative"),
     ]
-    for key, threshold, positive, negative in checks:
+    for key, threshold, scale, cap, positive, negative in checks:
         value = metrics.get(key)
         if not isinstance(value, (int, float)):
             continue
+        contribution = max(-cap, min(cap, round((value - threshold) * scale)))
+        score += contribution
         if value > threshold:
-            score += 10
-            positives.append(positive)
+            positives.append(f"{positive} ({value:.1f})")
         else:
-            score -= 10
-            negatives.append(negative)
+            negatives.append(f"{negative} ({value:.1f})")
     pe = metrics.get("peTTM")
     if isinstance(pe, (int, float)) and pe > 0:
-        if pe <= 35:
-            score += 5
-            positives.append("Valuation is within the configured P/E guardrail")
+        if 10 <= pe <= 25:
+            score += 8
+            positives.append(f"P/E valuation is within the preferred range ({pe:.1f})")
+        elif pe <= 35:
+            score += 3
+            positives.append(f"P/E valuation is within the outer guardrail ({pe:.1f})")
         else:
-            score -= 8
-            negatives.append("P/E valuation is elevated")
+            penalty = min(15, round((pe - 35) * 0.4 + 5))
+            score -= penalty
+            negatives.append(f"P/E valuation is elevated ({pe:.1f})")
     return max(0, min(100, score)), positives, negatives
 
 
 def news_score(items: list[dict]) -> tuple[int, list[str], list[str]]:
     positive_words = {"beat", "growth", "upgrade", "record", "raises", "profit"}
     negative_words = {"miss", "downgrade", "lawsuit", "cuts", "loss", "investigation"}
-    positive = negative = 0
+    positive = negative = 0.0
+    now = datetime.now(UTC)
     for item in items:
         text = f"{item.get('headline', '')} {item.get('summary', '')}".lower()
-        positive += sum(word in text for word in positive_words)
-        negative += sum(word in text for word in negative_words)
+        published = source_timestamp(item)
+        age_days = max(0, (now - published).days) if published else 30
+        recency_weight = exp(-age_days / 14)
+        positive += sum(word in text for word in positive_words) * recency_weight
+        negative += sum(word in text for word in negative_words) * recency_weight
     total = positive + negative
-    score = 50 if total == 0 else round(50 + (positive - negative) / total * 30)
-    factors = [f"{positive} positive headline cues across {len(items)} recent articles"]
-    risks = [f"{negative} negative headline cues require review"] if negative else []
+    score = 50 if total == 0 else round(50 + (positive - negative) / (total + 3) * 40)
+    factors = [f"{positive:.1f} recency-weighted positive cues across {len(items)} articles"]
+    risks = [f"{negative:.1f} recency-weighted negative cues require review"] if negative else []
     return max(0, min(100, score)), factors, risks
 
 

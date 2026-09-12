@@ -59,3 +59,45 @@ def test_market_sector_and_portfolio_context() -> None:
     assert regime_score > 50 and "Risk-on" in regime_text
     assert sector_score > 50 and "versus" in sector_text
     assert portfolio_score < 50 and "concentrated" in portfolio_text
+
+
+def test_context_scores_vary_with_magnitude_and_invested_exposure() -> None:
+    strong_regime, _ = market_regime(bars(100, 1.0))
+    mild_regime, _ = market_regime(bars(100, 0.2))
+    assert strong_regime > mild_regime > 50
+
+    concentrated, _ = portfolio_suitability(
+        [("Technology", 90_000), ("Healthcare", 10_000)], "Technology"
+    )
+    diversified, _ = portfolio_suitability(
+        [("Technology", 20_000), ("Healthcare", 80_000)], "Technology"
+    )
+    assert concentrated < diversified
+
+
+def test_research_scores_respond_to_strength_and_news_volume() -> None:
+    moderate, _, _ = fundamental_score(
+        {
+            "roeTTM": 12,
+            "netProfitMarginTTM": 7,
+            "revenueGrowthTTMYoy": 2,
+            "epsGrowthTTMYoy": 2,
+            "peTTM": 30,
+        }
+    )
+    strong, _, _ = fundamental_score(
+        {
+            "roeTTM": 30,
+            "netProfitMarginTTM": 25,
+            "revenueGrowthTTMYoy": 20,
+            "epsGrowthTTMYoy": 25,
+            "peTTM": 20,
+        }
+    )
+    assert strong > moderate
+
+    one_cue, _, _ = news_score([{"headline": "Company reports growth"}])
+    several_cues, _, _ = news_score(
+        [{"headline": "Company reports record growth and profit beat"} for _ in range(3)]
+    )
+    assert several_cues > one_cue > 50

@@ -6,13 +6,11 @@ import httpx
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from plotly.subplots import make_subplots
+from shared import configure_page, research_notice
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
-st.set_page_config(page_title="InvestVantage", page_icon="📈", layout="wide")
-st.title("Instrument Research")
-st.caption("Explainable market intelligence · Research and paper trading only")
+configure_page("Instrument Research")
 
 
 @st.cache_data(ttl=30)
@@ -262,95 +260,164 @@ with content:
     if chart_data.empty:
         st.warning("No bars exist inside the selected date/time range.")
         st.stop()
-    display_timezone = (
-        manual_timezone if range_mode == "Custom date & time" else "America/New_York"
-    )
+    display_timezone = manual_timezone if range_mode == "Custom date & time" else "America/New_York"
     chart_data = chart_data.copy()
     chart_data["timestamp"] = chart_data["timestamp"].dt.tz_convert(display_timezone)
-    chart = make_subplots(
-        rows=4,
-        cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.04,
-        row_heights=[0.55, 0.18, 0.14, 0.13],
+    chart_identity = f"{symbol}-{provider}-{selected_interval}-{chart_window}"
+    wheel_zoom = st.toggle(
+        "Enable mouse-wheel zoom",
+        value=False,
+        help="Enable only when you want rapid zooming; leave off to prevent accidental scaling.",
     )
-    chart.add_trace(
-        go.Candlestick(
-            x=chart_data["timestamp"],
-            open=chart_data["open"],
-            high=chart_data["high"],
-            low=chart_data["low"],
-            close=chart_data["close"],
-            increasing_line_color="#14b8a6",
-            decreasing_line_color="#ef4444",
-            name="OHLC",
-        ),
-        row=1,
-        col=1,
-    )
-    chart.add_trace(
-        go.Scatter(x=chart_data["timestamp"], y=chart_data["sma_20"], name="SMA 20"),
-        row=1,
-        col=1,
-    )
-    chart.add_trace(
-        go.Scatter(x=chart_data["timestamp"], y=chart_data["sma_50"], name="SMA 50"),
-        row=1,
-        col=1,
-    )
-    chart.add_trace(
-        go.Bar(
-            x=chart_data["timestamp"],
-            y=chart_data["volume"].fillna(0),
-            marker_color="#64748b",
-            name="Volume",
-        ),
-        row=2,
-        col=1,
-    )
-    chart.add_trace(
-        go.Scatter(x=chart_data["timestamp"], y=chart_data["rsi_14"], name="RSI 14"),
-        row=3,
-        col=1,
-    )
-    chart.add_hline(y=70, line_dash="dot", line_color="#ef4444", row=3, col=1)
-    chart.add_hline(y=30, line_dash="dot", line_color="#14b8a6", row=3, col=1)
-    chart.add_trace(
-        go.Scatter(x=chart_data["timestamp"], y=chart_data["macd"], name="MACD"),
-        row=4,
-        col=1,
-    )
-    chart.add_trace(
-        go.Scatter(x=chart_data["timestamp"], y=chart_data["macd_signal"], name="MACD signal"),
-        row=4,
-        col=1,
-    )
-    chart.update_layout(
-        height=780,
-        margin={"l": 10, "r": 10, "t": 20, "b": 10},
-        hovermode="x unified",
-        xaxis_rangeslider_visible=False,
-        legend={"orientation": "h", "y": 1.02, "x": 0},
-        uirevision=f"{symbol}-{provider}-{selected_interval}-{chart_window}",
-    )
-    chart.update_xaxes(
-        range=[chart_data["timestamp"].min(), chart_data["timestamp"].max()],
-        showspikes=True,
-        spikemode="across",
-        spikesnap="cursor",
-    )
-    chart.update_yaxes(fixedrange=False)
-    st.plotly_chart(
-        chart,
-        use_container_width=True,
-        config={"displaylogo": False, "responsive": True, "scrollZoom": True},
-    )
+    chart_config = {
+        "displaylogo": False,
+        "responsive": True,
+        "scrollZoom": wheel_zoom,
+        "doubleClick": "reset",
+    }
+    layout = {
+        "height": 560,
+        "autosize": True,
+        "margin": {"l": 10, "r": 10, "t": 32, "b": 10},
+        "hovermode": "x",
+        "hoverdistance": 80,
+        "dragmode": "zoom",
+        "uirevision": chart_identity,
+        "transition": {"duration": 0},
+    }
+    price_tab, volume_tab, rsi_tab, macd_tab = st.tabs(["Price", "Volume", "RSI", "MACD"])
+    with price_tab:
+        overlays = st.multiselect(
+            "Price overlays",
+            ["SMA 20", "SMA 50"],
+            default=["SMA 20"],
+            help="Keep overlays selective so the candlestick structure remains readable.",
+        )
+        price_chart = go.Figure(
+            go.Candlestick(
+                x=chart_data["timestamp"],
+                open=chart_data["open"],
+                high=chart_data["high"],
+                low=chart_data["low"],
+                close=chart_data["close"],
+                increasing_line_color="#14b8a6",
+                decreasing_line_color="#ef4444",
+                name="Price",
+            )
+        )
+        if "SMA 20" in overlays:
+            price_chart.add_trace(
+                go.Scatter(x=chart_data["timestamp"], y=chart_data["sma_20"], name="SMA 20")
+            )
+        if "SMA 50" in overlays:
+            price_chart.add_trace(
+                go.Scatter(x=chart_data["timestamp"], y=chart_data["sma_50"], name="SMA 50")
+            )
+        price_chart.update_layout(**layout, title="Price and selected trend overlays")
+        price_chart.update_xaxes(rangeslider_visible=False)
+        st.plotly_chart(
+            price_chart,
+            use_container_width=True,
+            key=f"price-{chart_identity}",
+            config=chart_config,
+        )
+    with volume_tab:
+        volume_chart = go.Figure(
+            go.Bar(
+                x=chart_data["timestamp"],
+                y=chart_data["volume"].fillna(0),
+                marker_color="#64748b",
+                name="Volume",
+            )
+        )
+        volume_chart.update_layout(**layout, title="Trading volume")
+        st.plotly_chart(
+            volume_chart,
+            use_container_width=True,
+            key=f"volume-{chart_identity}",
+            config=chart_config,
+        )
+    with rsi_tab:
+        rsi_chart = go.Figure(
+            go.Scatter(x=chart_data["timestamp"], y=chart_data["rsi_14"], name="RSI 14")
+        )
+        rsi_chart.add_hline(y=70, line_dash="dot", line_color="#ef4444")
+        rsi_chart.add_hline(y=30, line_dash="dot", line_color="#14b8a6")
+        rsi_chart.update_layout(**layout, title="Relative Strength Index (14)")
+        rsi_chart.update_yaxes(range=[0, 100])
+        st.plotly_chart(
+            rsi_chart,
+            use_container_width=True,
+            key=f"rsi-{chart_identity}",
+            config=chart_config,
+        )
+    with macd_tab:
+        macd_chart = go.Figure()
+        macd_chart.add_trace(
+            go.Scatter(x=chart_data["timestamp"], y=chart_data["macd"], name="MACD")
+        )
+        macd_chart.add_trace(
+            go.Scatter(
+                x=chart_data["timestamp"],
+                y=chart_data["macd_signal"],
+                name="Signal line",
+            )
+        )
+        macd_chart.add_hline(y=0, line_dash="dot", line_color="#64748b")
+        macd_chart.update_layout(**layout, title="MACD momentum")
+        st.plotly_chart(
+            macd_chart,
+            use_container_width=True,
+            key=f"macd-{chart_identity}",
+            config=chart_config,
+        )
     st.caption(
         f"{provider} · {selected_interval} OHLCV · {display_timezone} · "
         f"{chart_data['timestamp'].min():%d %b %Y %H:%M} to "
         f"{chart_data['timestamp'].max():%d %b %Y %H:%M} · {len(chart_data)} bars. "
-        "Drag to zoom, double-click to reset, and hover for exact values."
+        "Drag to zoom, double-click to reset, and hover for exact values. Mouse-wheel zoom is "
+        f"{'enabled' if wheel_zoom else 'disabled'} for this view."
     )
+    evidence_tab, indicators_tab, next_steps_tab = st.tabs(
+        ["Technical evidence", "Indicator values", "Continue research"]
+    )
+    with evidence_tab:
+        positives, risks = st.columns(2)
+        with positives:
+            st.subheader("Positive technical factors")
+            for factor in result["positive_factors"] or ["No positive factor confirmed"]:
+                st.success(factor)
+        with risks:
+            st.subheader("Technical risks")
+            for factor in result["negative_factors"] or ["No technical risk confirmed"]:
+                st.warning(factor)
+    with indicators_tab:
+        indicator_table = pd.DataFrame(
+            [
+                {"Indicator": key.upper(), "Value": value}
+                for key, value in result["indicators"].items()
+            ]
+        )
+        st.dataframe(indicator_table, use_container_width=True, hide_index=True)
+        st.caption(
+            "This page is intentionally limited to price and technical evidence. Fundamental, "
+            "news, signal, backtest and portfolio interpretation live in their dedicated pages."
+        )
+    with next_steps_tab:
+        first, second, third = st.columns(3)
+        with first:
+            st.page_link(
+                "pages/5_Fundamentals_Events.py",
+                label="Review fundamentals & events",
+                icon="📰",
+            )
+        with second:
+            st.page_link("pages/4_Signals.py", label="Inspect research signals", icon="🧭")
+        with third:
+            st.page_link("pages/6_Backtest_Lab.py", label="Validate in Backtest Lab", icon="🧪")
+    research_notice()
+    st.stop()
+
     research_tab, news_tab, earnings_tab, actions_tab = st.tabs(
         ["Fundamentals", "News", "Earnings", "Corporate actions"]
     )
@@ -581,7 +648,4 @@ with content:
     else:
         st.info("Add paper holdings through the portfolio API to enable exposure guardrails.")
 
-st.divider()
-st.caption(
-    "Research only. Recommendations are not guaranteed and users remain responsible for decisions."
-)
+research_notice()

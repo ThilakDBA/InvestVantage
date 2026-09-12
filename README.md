@@ -69,6 +69,23 @@ Stop without deleting PostgreSQL data:
 docker compose down
 ```
 
+### Windows one-click launchers
+
+After creating `.env`, Windows users can double-click `START_INVESTVANTAGE.cmd`.
+It starts Docker Desktop when necessary, starts the Compose services, waits for
+the API and dashboard health checks, and opens the dashboard. Double-click
+`STOP_INVESTVANTAGE.cmd` to stop the application without deleting PostgreSQL data.
+
+A normal daily start reuses existing images. After changing Python dependencies
+or the Dockerfile, rebuild from PowerShell:
+
+```powershell
+.\scripts\Start-InvestVantage.ps1 -Build
+```
+
+The stop launcher deliberately leaves Docker Desktop running because other local
+applications may be using it.
+
 ## Database migrations
 
 ```bash

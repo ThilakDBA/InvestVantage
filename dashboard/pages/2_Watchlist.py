@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-from shared import configure_page, research_notice, safe_get, score_label
+from shared import configure_page, research_notice, safe_get
 
 
 def percentage_change(history: list[dict], close: float | None, period: int) -> float | None:
@@ -14,7 +14,12 @@ def percentage_change(history: list[dict], close: float | None, period: int) -> 
 
 configure_page("Watchlist", "👀")
 
-provider = st.selectbox("Stored analysis source", ["twelve_data", "mock"], index=0)
+provider = st.selectbox("Market-data source", ["twelve_data", "finnhub", "mock"], index=0)
+if provider == "finnhub":
+    st.info(
+        "Finnhub quote mode shows the latest available price. Trend and performance scores "
+        "require historical Twelve Data bars."
+    )
 watchlists = safe_get("/api/v1/watchlists", default=[])
 signals = safe_get("/api/v1/signals", default=[])
 latest_signals = {}
@@ -30,12 +35,21 @@ selected = st.selectbox("Watchlist", watchlists, format_func=lambda item: item["
 rows = []
 for instrument in selected["instruments"]:
     symbol = instrument["symbol"]
-    analysis = safe_get(
-        f"/api/v1/analysis/{symbol}/technical",
-        {"provider": provider, "refresh": "false", "limit": 260, "interval": "1day"},
-        {},
-    )
-    history = analysis.get("price_history", []) if analysis else []
+    if provider == "finnhub":
+        market = safe_get(
+            f"/api/v1/market/{symbol}",
+            {"provider": provider, "limit": 2},
+            {},
+        )
+        analysis = {}
+        history = market.get("bars", []) if market else []
+    else:
+        analysis = safe_get(
+            f"/api/v1/analysis/{symbol}/technical",
+            {"provider": provider, "refresh": "false", "limit": 260, "interval": "1day"},
+            {},
+        )
+        history = analysis.get("price_history", []) if analysis else []
     signal = latest_signals.get(symbol, {})
     latest = history[-1] if history else {}
     close = latest.get("close")
@@ -52,9 +66,7 @@ for instrument in selected["instruments"]:
             "Trend": analysis.get("trend", "Missing").title() if analysis else "Missing",
             "Technical": analysis.get("technical_score") if analysis else None,
             "Recommendation": signal.get("recommendation", "—"),
-            "Confidence": signal.get("confidence_score"),
-            "Risk": signal.get("risk_score"),
-            "Status": score_label(signal.get("confidence_score")),
+            "Signal generated": signal.get("generated_at", "Not generated"),
             "Latest timestamp": latest.get("timestamp", "Not available"),
         }
     )
@@ -70,8 +82,6 @@ st.dataframe(
         "1M %": st.column_config.NumberColumn(format="%.2f%%"),
         "3M %": st.column_config.NumberColumn(format="%.2f%%"),
         "Technical": st.column_config.ProgressColumn(min_value=0, max_value=100),
-        "Confidence": st.column_config.ProgressColumn(min_value=0, max_value=100),
-        "Risk": st.column_config.ProgressColumn(min_value=0, max_value=100),
     },
 )
 st.caption("Missing values are displayed explicitly and are never replaced with synthetic scores.")
